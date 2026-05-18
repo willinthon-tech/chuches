@@ -191,7 +191,7 @@ app.put('/api/salas/:id/credito', async (req, res) => {
     try { await pool.query("UPDATE salas SET default_credit_limit=? WHERE id=?", [req.body.limite, req.params.id]); res.json({success:true}); } 
     catch(err) { res.status(500).json({error: err.message}); }
 });
-const PORT = 3000;
+const PORT = 3007;
 app.listen(PORT, () => {
     console.log(`✅ Backend listo y conectado a MySQL.`);
     console.log(`🌐 Ingresa a http://localhost:${PORT} desde tu navegador.`);
