@@ -1,0 +1,41 @@
+# Dependencias de Node (Esta es la que necesitas para omitir la carpeta pesada)
+node_modules/
+jspm_packages/
+web_modules/
+
+# Archivos de entorno y credenciales (Súper importante para proteger tu clave de MySQL)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+config/config.json
+
+# Archivos temporales del sistema operativo
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Configuraciones de editores de código (VS Code, WebStorm, etc.)
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs de errores de npm / node
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Backups o volcados de bases de datos locales (Evita subirlos por accidente)
+*.sql
+*.sqlite

@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema Multi-Sala - Chuches POS</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="modal fade backdrop-blur d-none" id="modalAuthSistema" data-bs-backdrop="static" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content shadow-lg border-0">
+        <div class="modal-header bg-dark text-white py-3">
+          <h5 class="modal-title fw-bold fs-6" id="authModalTitulo"><i class="bi bi-shield-lock-fill text-warning me-2"></i> Iniciar Sesión</h5>
+        </div>
+        <div class="modal-body p-4">
+          <form id="formLoginAutenticacion" onsubmit="procesarLoginInicial(event)">
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-secondary">Usuario:</label>
+              <div class="input-group">
+                <span class="input-group-text bg-light text-muted"><i class="bi bi-at"></i></span>
+                <input type="text" class="form-control" id="authInputUsuario" placeholder="Usuario" required>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-secondary">Contraseña:</label>
+              <div class="input-group">
+                <span class="input-group-text bg-light text-muted"><i class="bi bi-key-fill"></i></span>
+                <input type="password" class="form-control" id="authInputPassword" placeholder="********" required>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg w-100 shadow mt-2 fs-6 fw-bold">Ingresar</button>
+          </form>
+          <div id="bloquePostLoginSeleccionSala" class="d-none text-center">
+            <div class="badge bg-light text-success p-3 rounded-circle mb-3 shadow-sm"><i class="bi bi-building-check fs-3"></i></div>
+            <h6 class="fw-bold text-dark m-0" id="txtBienvenidaPostLogin">¡Hola!</h6>
+            <small class="text-muted d-block mb-3" id="txtRolPostLogin">-</small>
+            <div class="mb-3 text-start">
+              <label class="form-label small fw-bold text-secondary">Selecciona la Sala a trabajar:</label>
+              <select class="form-select border-primary fw-bold" id="authSelectorSala" onchange="actualizarSelectorTurnosLogin()"></select>
+            </div>
+            <div class="mb-4 text-start d-none" id="wrapperSelectorTurnoLogin">
+              <label class="form-label small fw-bold text-danger"><i class="bi bi-clock-history"></i> Selecciona Turno de Trabajo:</label>
+              <select class="form-select border-danger fw-bold" id="authSelectorTurno"></select>
+            </div>
+            <button type="button" class="btn btn-success btn-lg w-100 shadow fw-bold fs-6" onclick="entrarAlDashboardFinal()">Seleccionar Sala</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalAlertasSistema" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-dark text-white py-2" id="headerAlertaSistema">
+          <h6 class="modal-title fw-bold" id="tituloAlertaSistema">Notificación</h6>
+          <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4 text-center">
+          <div id="iconoAlertaSistema" class="fs-1 mb-2"></div>
+          <p class="m-0 text-secondary small fw-bold" id="cuerpoAlertaSistema">Mensaje del sistema.</p>
+          <button type="button" class="btn btn-sm btn-secondary w-100 mt-3 fw-bold shadow-sm" data-bs-dismiss="modal">Entendido</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalConfirmarEliminacion" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-danger text-white py-2">
+          <h6 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i> ¿Confirmar acción?</h6>
+          <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4 text-center">
+          <div class="fs-1 text-danger mb-2"><i class="bi bi-trash3"></i></div>
+          <p class="m-0 text-secondary small fw-bold" id="mensajeConfirmarEliminacion">¿Está seguro de que desea eliminar este elemento?</p>
+          <div class="d-flex gap-2 mt-3">
+            <button type="button" class="btn btn-sm btn-secondary w-50 fw-bold" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-sm btn-danger w-50 fw-bold shadow-sm" id="btnConfirmarEliminarEjecutar">Eliminar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalFijarTasaForm" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-dark text-white py-3">
+          <h5 class="modal-title fw-bold fs-6"><i class="bi bi-currency-exchange text-warning me-2"></i> Ajustar Tasa BCV</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <form id="formFijarTasaInterno" onsubmit="procesarNuevaTasaSupervisor(event)">
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-secondary">Valor de la Tasa Operativa:</label>
+              <input type="number" step="0.01" min="0.01" class="form-control form-control-lg text-center fw-bold text-success" id="inputMontoNuevaTasa" required>
+            </div>
+            <button type="submit" class="btn btn-success w-100 fw-bold shadow"><i class="bi bi-shield-check"></i> Actualizar Tasa</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalFijarCreditoGlobalForm" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-dark text-white py-3">
+          <h5 class="modal-title fw-bold fs-6"><i class="bi bi-gear-fill text-warning me-2"></i> Límite por Defecto</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <form id="formFijarCreditoGlobalInterno" onsubmit="procesarNuevoCreditoGlobalSupervisor(event)">
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-secondary">Monto Base para Nuevos Clientes ($):</label>
+              <input type="number" step="0.01" min="0" class="form-control form-control-lg text-center fw-bold text-warning" id="inputMontoNuevoCreditoGlobal" required>
+            </div>
+            <button type="submit" class="btn btn-warning w-100 fw-bold shadow text-dark">Guardar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalDetalleTurnoVentas" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-dark text-white py-3">
+          <h5 class="modal-title fw-bold fs-6" id="lblTituloModalTurno">Auditoría Detallada</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle text-center small mb-0">
+              <thead class="table-light">
+                <tr><th>Recibo ID</th><th>Fecha/Hora</th><th>Turno / Bloque</th><th>Cajero</th><th>Cliente</th><th>Modalidad</th><th>Tasa Aplicada</th><th>Total USD ($)</th><th>Total Bs</th><th>Status</th><th>Acciones</th></tr>
+              </thead>
+              <tbody id="tablaDetallesEspecificosTurno">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalVerItemsComprados" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-dark text-white py-3">
+          <h6 class="modal-title fw-bold" id="lblTituloItemsTicket"><i class="bi bi-receipt me-2 text-warning"></i> Nota de Entrega / Detalles de Transacción</h6>
+          <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4 bg-light">
+          <div class="row mb-4 bg-white p-3 rounded shadow-sm border mx-1">
+            <div class="col-sm-6 border-end">
+              <h5 class="fw-bold text-primary mb-2" id="invoiceTicketId">REC-000</h5>
+              <div class="small text-muted mb-2"><i class="bi bi-calendar-event"></i> Fecha y Hora: <span id="invoiceFecha" class="fw-bold text-dark">--/--/----</span></div>
+              <div class="small mb-1"><strong>Cajero Operador:</strong> <span id="invoiceCajero" class="badge bg-secondary">@cajero</span></div>
+              <div class="small"><strong>Cliente / Destino:</strong> <span id="invoiceCliente" class="fw-bold text-dark">General</span></div>
+            </div>
+            <div class="col-sm-6 text-sm-end mt-3 mt-sm-0">
+              <div class="small mb-1"><strong>Modalidad de Pago:</strong> <span class="badge bg-success" id="invoiceMetodo">Efectivo</span></div>
+              <div class="small mb-2"><strong>Tasa Aplicada (BCV):</strong> <span id="invoiceTasa" class="fw-bold">0.00</span> Bs</div>
+              <div class="mt-3 p-2 bg-light rounded border">
+                <h4 class="fw-bold text-success mb-0">Total: $<span id="invoiceTotalUSD">0.00</span></h4>
+                <small class="text-muted fw-bold">Equivalente: <span id="invoiceTotalVES">0.00</span> Bs</small>
+              </div>
+            </div>
+          </div>
+          <div class="table-responsive bg-white p-0 rounded shadow-sm border mx-1">
+            <table class="table table-striped table-hover text-center align-middle mb-0 small">
+              <thead class="table-dark">
+                <tr><th>Código SKU</th><th>Descripción del Artículo</th><th>Cant.</th><th>Costo Unit.</th><th>Subtotal USD</th></tr>
+              </thead>
+              <tbody id="cuerpoTablaItemsComprados"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalAuditoriaClienteDinamica" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-dark text-white py-3">
+          <h5 class="modal-title fw-bold fs-6" id="lblTituloAuditoriaCliente">Auditoría de Cliente</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4 bg-light">
+          <div class="table-responsive bg-white p-2 rounded shadow-sm border">
+            <table class="table table-hover align-middle text-center small mb-0" id="tablaAuditoriaClienteContenedor">
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalAuditoriaAbonos" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-dark text-white py-3">
+          <h5 class="modal-title fw-bold fs-6" id="lblTituloAuditoriaAbonos">Historial de Abonos del Ticket</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4 bg-light">
+          <div class="table-responsive bg-white p-2 rounded shadow-sm border">
+            <table class="table table-hover align-middle text-center small mb-0" id="tablaAuditoriaAbonosContenedor">
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalEditarCliente" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-primary text-white py-3">
+          <h5 class="modal-title fw-bold fs-6"><i class="bi bi-pencil-square me-2"></i> Editar Cliente</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formEditarCliente" onsubmit="guardarEdicionCliente(event)">
+          <input type="hidden" id="inputEditClienteId" value="">
+          <div class="modal-body p-4">
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-secondary">Nombre Completo del Cliente</label>
+              <input type="text" class="form-control" id="inputEditNombreCliente" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-secondary">Límite de Crédito Autorizado ($)</label>
+              <input type="number" step="0.01" min="0" class="form-control fw-bold text-primary" id="inputEditLimiteCliente" required>
+            </div>
+          </div>
+          <div class="modal-footer bg-light border-0">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary fw-bold px-4">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalAbonarDeuda" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-success text-white py-3">
+          <h5 class="modal-title fw-bold fs-6"><i class="bi bi-cash-coin me-2"></i> Abonar a Ticket</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="formAbonarDeuda" onsubmit="procesarAbonoDeuda(event)">
+          <input type="hidden" id="abonoCliId">
+          <input type="hidden" id="abonoVentaId">
+          <div class="modal-body p-4 text-center">
+            <h6 class="text-secondary mb-1 fw-bold" id="abonoCliNombre">Cliente</h6>
+            <p class="small text-muted mb-2">Ref: <code id="abonoTicketRef"></code></p>
+            <p class="small text-muted mb-3">Resta por Pagar: <strong class="text-danger fs-5" id="abonoCliDeudaActual">$0.00</strong></p>
+            
+            <div class="mb-3 text-start">
+              <label class="form-label small fw-bold text-secondary">Método de Pago:</label>
+              <select class="form-select form-select-sm fw-bold border-primary" id="abonoSelectMetodo" onchange="actualizarConversionAbono()" required></select>
+            </div>
+
+            <div class="mb-2 text-start">
+              <label class="form-label small fw-bold text-secondary">Monto a Abonar ($)</label>
+              <input type="number" step="0.01" min="0.01" class="form-control form-control-lg text-center fw-bold text-success" id="abonoMontoInput" oninput="actualizarConversionAbono()" required>
+            </div>
+            
+            <div class="p-2 bg-light rounded text-center mt-2">
+              <small class="text-muted fw-bold d-block" id="abonoConversionLabelBs">Equivalente: 0.00 Bs</small>
+            </div>
+          </div>
+          <div class="modal-footer bg-light border-0">
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-success btn-sm fw-bold"><i class="bi bi-check-circle"></i> Procesar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalAjustarStock" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-dark text-white py-3">
+          <h5 class="modal-title fw-bold fs-6"><i class="bi bi-box-seam me-2"></i> Surtir / Ajustar Stock</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formAjustarStock" onsubmit="guardarAjusteStock(event)">
+          <input type="hidden" id="ajusteStockArtId" value="">
+          <div class="modal-body p-4 text-center">
+            <h6 class="text-secondary mb-3 fw-bold" id="ajusteStockNombreArt">Producto</h6>
+            <div class="mb-2 text-start">
+              <label class="form-label small fw-bold text-secondary">Nueva Existencia Física</label>
+              <input type="number" min="0" class="form-control form-control-lg text-center fw-bold text-dark" id="ajusteStockInput" required>
+            </div>
+          </div>
+          <div class="modal-footer bg-light border-0">
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-dark btn-sm fw-bold">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalNuevaVentaPOS" tabindex="-1" data-bs-backdrop="static" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-success text-white py-3">
+          <h5 class="modal-title fw-bold fs-6"><i class="bi bi-cart-plus-fill me-2"></i> Registrar Nueva Transacción de Venta</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4 row g-3">
+          
+          <div class="col-md-7 border-end">
+            <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-grid-3x3-gap"></i> Catálogo de Productos</h6>
+            <div class="product-grid" id="gridProductosVenta"></div>
+          </div>
+          
+          <div class="col-md-5">
+            <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-receipt"></i> Detalles del Ticket</h6>
+            
+            <div class="mb-3 p-2 border rounded" style="background-color: #f8f9fa;">
+              <div class="form-check form-switch fs-6 d-flex align-items-center">
+                <input class="form-check-input ms-0 me-2 mt-0" type="checkbox" id="posSwitchTipoVenta" onchange="toggleTipoVentaPOS()" style="width: 2.5em; height: 1.2em;">
+                <label class="form-check-label fw-bold text-dark m-0" id="lblPosTipoVenta" for="posSwitchTipoVenta" style="cursor: pointer;">Venta Normal (Contado)</label>
+              </div>
+            </div>
+
+            <div class="mb-3" id="divPosCliente" style="display: none;">
+              <label class="form-label small fw-bold text-primary"><i class="bi bi-person-fill"></i> Seleccionar Cliente a Fiar:</label>
+              <select class="form-select form-select-sm border-primary fw-bold" id="posSelectCliente" onchange="verificarLimiteCreditoVenta()"></select>
+            </div>
+            
+            <div class="mb-3" id="divPosMetodo">
+              <label class="form-label small fw-bold text-secondary"><i class="bi bi-credit-card-fill"></i> Método de Liquidación:</label>
+              <select class="form-select form-select-sm border-secondary fw-bold" id="posSelectMetodo" onchange="actualizarEstadoBotonVenta()"></select>
+            </div>
+
+            <div id="alertaCreditoVenta" class="mb-2 small text-danger fw-bold d-none"></div>
+            
+            <div class="table-responsive border rounded mb-3 bg-light scroll-caja">
+              <table class="table table-sm table-striped text-center align-middle small mb-0">
+                <thead class="table-light"><tr><th>Item</th><th style="width:90px;">Cant</th><th>Precio</th><th>Total</th><th>Acción</th></tr></thead>
+                <tbody id="posCarritoCuerpo"></tbody>
+              </table>
+            </div>
+            
+            <div class="p-3 bg-dark text-white rounded mb-3 text-end">
+              <h5 class="m-0 fw-bold text-warning">Total USD: $<span id="posTotalUSD">0.00</span></h5>
+              <small class="text-muted d-block" id="posConversionLabelBs">Equivalente: 0.00 Bs</small>
+            </div>
+            
+            <button type="button" class="btn btn-success w-100 fw-bold py-2 shadow" id="btnProcesarVenta" onclick="procesarEjecutarVentaPOS()" disabled><i class="bi bi-check-all"></i> Procesar y Despachar</button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalAltaSala" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-primary text-white py-3">
+          <h5 class="modal-title fw-bold fs-6" id="tituloModalSala">Nuevo Registro</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formNuevaSala" onsubmit="crearSalaAdmin(event)">
+          <input type="hidden" id="inputEditSalaId" value="">
+          <div class="modal-body p-4">
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-secondary">Nombre de la Sucursal</label>
+              <input type="text" class="form-control form-control-lg" id="inputNombreSala" placeholder="Ej: Sala Gran Sabana" required>
+            </div>
+          </div>
+          <div class="modal-footer bg-light border-0">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-success fw-bold px-4" id="btnGuardarSala">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalAltaSupervisor" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-primary text-white py-3">
+          <h5 class="modal-title fw-bold fs-6" id="tituloModalSupervisor"><i class="bi bi-person-plus-fill me-2"></i> Mapear Usuario Raíz</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formNuevoSupervisor" onsubmit="crearSupervisorAdmin(event)">
+          <input type="hidden" id="inputEditSupId" value="">
+          <div class="modal-body p-4 row g-3">
+            <div class="col-md-4">
+              <label class="form-label small fw-bold text-secondary">Nombre Completo</label>
+              <input type="text" class="form-control" id="inputNombreSup" placeholder="Ej: Juan Pérez" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold text-secondary">Usuario de Acceso</label>
+              <input type="text" class="form-control" id="inputUsernameSup" placeholder="Ej: juan_sup" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold text-secondary">Contraseña</label>
+              <input type="password" class="form-control" id="inputPasswordSup" placeholder="********" required>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label small fw-bold text-primary">Asociar Salas de Control</label>
+              <select class="form-select" id="inputSalasAsignadasSup" multiple style="min-height: 85px;" required></select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold text-danger">Rango Asignado</label>
+              <input type="text" class="form-control border-danger text-danger fw-bold bg-light" id="inputRolSup" value="SUPERVISOR" readonly>
+              <small class="text-muted" style="font-size: 0.7rem;">Solo puedes crear Supervisores.</small>
+            </div>
+          </div>
+          <div class="modal-footer bg-light border-0">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary fw-bold px-4" id="btnGuardarSup">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalAltaCliente" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-primary text-white py-3">
+          <h5 class="modal-title fw-bold fs-6"><i class="bi bi-person-plus-fill me-2"></i> Dar de Alta Nuevo Cliente</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formNuevoCliente" onsubmit="crearClienteSala(event)">
+          <div class="modal-body p-4">
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-secondary">Nombre Completo del Cliente</label>
+              <input type="text" class="form-control form-control-lg" id="inputNombreCliente" placeholder="Ej: Carlos Mendoza" required>
+            </div>
+          </div>
+          <div class="modal-footer bg-light border-0">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-success fw-bold px-4">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalAltaProducto" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-primary text-white py-3">
+          <h5 class="modal-title fw-bold fs-6">Nuevo Registro</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formNuevoProducto" onsubmit="crearProductoSupervisor(event)">
+          <div class="modal-body p-4 row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-bold text-secondary">Código SKU / Barra</label>
+              <input type="text" class="form-control" id="inputProdCode" placeholder="Ej: SAV-05" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-bold text-secondary">Precio Base ($)</label>
+              <input type="number" step="0.01" min="0.01" class="form-control fw-bold text-primary" id="inputProdPrice" placeholder="0.00" required>
+            </div>
+            <div class="col-md-12">
+              <label class="form-label small fw-bold text-secondary">Descripción / Nombre</label>
+              <input type="text" class="form-control" id="inputProdName" placeholder="Ej: Cocosette Mini" required>
+            </div>
+            <div class="col-md-12">
+              <label class="form-label small fw-bold text-success">Stock Inicial</label>
+              <input type="number" min="0" class="form-control fw-bold border-success" id="inputProdStockInicial" value="0" required>
+            </div>
+          </div>
+          <div class="modal-footer bg-light border-0">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-success fw-bold px-4">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalAltaEmpleado" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-dark text-white py-3">
+          <h5 class="modal-title fw-bold fs-6" id="tituloModalPersonal"><i class="bi bi-person-plus-fill me-2 text-warning"></i> Registrar Personal Operador</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formNuevoEmpleado" onsubmit="guardarEmpleadoSupervisor(event)">
+          <input type="hidden" id="inputEditEmpId" value="">
+          <div class="modal-body p-4 row g-3">
+            <div class="col-12">
+              <label class="form-label small fw-bold text-secondary">Nombre Completo</label>
+              <input type="text" class="form-control" id="inputNombreEmp" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-bold text-secondary">Usuario de Acceso</label>
+              <input type="text" class="form-control" id="inputUsernameEmp" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-bold text-secondary">Contraseña / Clave</label>
+              <input type="password" class="form-control" id="inputPasswordEmp" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-bold text-primary">Nivel / Rol de Usuario</label>
+              <select class="form-select fw-bold border-primary" id="inputRolEmp" required>
+                <option value="EMPLEADO" selected>Empleado (Cajero operativo)</option>
+                <option value="SUPERVISOR">Supervisor (Gestión y Co-administración)</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer bg-light border-0">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary fw-bold px-4" id="btnGuardarPersonal">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalAltaTurno" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-dark text-white py-3">
+          <h5 class="modal-title fw-bold fs-6" id="tituloModalTurnoConfig"><i class="bi bi-clock-fill text-warning me-2"></i> Estructurar Turno de Trabajo</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formNuevoTurno" onsubmit="guardarTurnoSala(event)">
+          <input type="hidden" id="inputEditTurnoId" value="">
+          <div class="modal-body p-4 row g-3">
+            <div class="col-12">
+              <label class="form-label small fw-bold text-secondary">Nombre Identificador del Turno</label>
+              <input type="text" class="form-control" id="inputNombreTurno" placeholder="Ej: Turno Nocturno Discoteca" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-bold text-secondary">Hora Apertura</label>
+              <input type="time" class="form-control" id="inputHoraInicioTurno" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-bold text-secondary">Hora Cierre</label>
+              <input type="time" class="form-control" id="inputHoraFinTurno" required>
+            </div>
+            <div class="col-12 mt-3">
+              <div class="form-check form-switch p-3 bg-light rounded border">
+                <input class="form-check-input ms-0 me-2" type="checkbox" id="inputCruzaMedianoche">
+                <label class="form-check-label small fw-bold text-danger" for="inputCruzaMedianoche">¿Este turno cruza la Medianoche? (Ventas en la madrugada)</label>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer bg-light border-0">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary fw-bold px-4" id="btnGuardarTurnoSubmit">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade backdrop-blur" id="modalAltaMetodoPago" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-dark text-white py-3">
+          <h5 class="modal-title fw-bold fs-6" id="tituloModalMetodoConfig"><i class="bi bi-credit-card-fill text-warning me-2"></i> Configurar Método de Pago</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formNuevoMetodoPago" onsubmit="guardarMetodoPagoSala(event)">
+          <input type="hidden" id="inputEditMetodoId" value="">
+          <div class="modal-body p-4 row g-3">
+            <div class="col-12">
+              <label class="form-label small fw-bold text-secondary">Nombre del Método de Pago</label>
+              <input type="text" class="form-control" id="inputNombreMetodo" placeholder="Ej: Punto de Venta, Pago Móvil, Zelle" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-bold text-primary">Moneda Operativa Base</label>
+              <select class="form-select fw-bold border-primary" id="inputMonedaMetodo" required>
+                <option value="USD" selected>Dólares ($)</option>
+                <option value="VES">Bolívares (Bs.D)</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer bg-light border-0">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary fw-bold px-4" id="btnGuardarMetodoSubmit">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="container-fluid d-none" id="dashboardPrincipal">
+    <div class="row">
+      <div class="col-md-3 col-lg-2 sidebar p-3 d-flex flex-column justify-content-between shadow-sm">
+        <div>
+          <div class="text-center py-3 border-bottom border-secondary mb-3">
+            <h5 class="fw-bold m-0 text-warning"><i class="bi bi-candy-item me-1"></i> Chuches POS</h5>
+            <span class="badge bg-primary text-white mt-2 px-3 py-1 shadow-sm" id="lblSalaActivaName">Modo Global</span>
+            <div id="lblTurnoActivoBadgeContainer" class="mt-1"></div>
+          </div>
+          <div class="p-2 mb-3 bg-light rounded text-dark small text-center shadow-sm">
+            <span class="text-muted d-block" style="font-size:0.75rem;">Usuario activo:</span>
+            <strong id="lblUsernameMenu">@user</strong> <br>
+            <span class="badge bg-dark text-white font-monospace mt-1" style="font-size: 0.65rem;" id="lblRolMenu">-</span>
+          </div>
+          <ul class="nav flex-column gap-1" id="menuNavegacionDinamico"></ul>
+        </div>
+        <div class="pt-2 border-top border-secondary">
+          <button class="btn btn-sm btn-outline-danger w-100" onclick="regresarALogin()"><i class="bi bi-power"></i> Salir del Sistema</button>
+        </div>
+      </div>
+      <div class="col-md-9 col-lg-10 p-4">
+        <div class="row g-3 mb-4 d-none" id="indicadoresResumenSala">
+          <div class="col-md-3">
+            <div class="card p-3 shadow-sm border-0 bg-white border-start border-4 border-success h-100">
+              <small class="text-muted fw-bold d-block mb-1" style="font-size: 0.75rem;">TASA DE CAMBIO BCV</small>
+              <div class="d-flex align-items-center justify-content-between mt-1">
+                <h4 class="m-0 fw-bold text-success"><span id="lblCardTasa">0.00</span> <small style="font-size:0.8rem;">Bs</small></h4>
+                <div id="wrapperBtnCambiarTasa"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card p-3 shadow-sm border-0 bg-white border-start border-4 border-warning h-100">
+              <small class="text-muted fw-bold d-block mb-1" style="font-size: 0.75rem;">CRÉDITO GLOBAL POR DEFECTO</small>
+              <div class="d-flex align-items-center justify-content-between mt-1">
+                <h4 class="m-0 fw-bold text-dark">$<span id="lblCardLimiteCredito">0.00</span></h4>
+                <div id="wrapperBtnCambiarCreditoGlobal"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card p-3 shadow-sm border-0 bg-white border-start border-4 border-info h-100">
+              <small class="text-muted fw-bold d-block mb-1" style="font-size: 0.75rem;">PRODUCTOS DISPONIBLES</small>
+              <div class="d-flex align-items-center justify-content-between mt-1">
+                <h4 class="m-0 fw-bold text-dark" id="lblCardArticulos">0 Items</h4>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card p-3 shadow-sm border-0 bg-white border-start border-4 border-danger h-100">
+              <small class="text-muted fw-bold d-block mb-1" style="font-size: 0.75rem;">CUENTAS FIADAS EN SUCURSAL</small>
+              <div class="d-flex align-items-center justify-content-between mt-1">
+                <h4 class="m-0 fw-bold text-danger">$<span id="lblCardDeudaTotal">0.00</span></h4>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="viewAdminSalas" class="d-none">
+          <div class="card shadow-sm border-0 bg-white">
+            <div class="card-header bg-dark text-white py-3 d-flex align-items-center justify-content-between fw-bold">
+              <span><i class="bi bi-shop me-2 text-warning"></i> Salas</span>
+              <button class="btn btn-success btn-sm fw-bold shadow-sm" onclick="abrirModalCrearSala()">
+                Nuevo Registro
+              </button>
+            </div>
+            <div class="card-body p-0">
+              <table class="table table-hover align-middle text-center mb-0">
+                <thead class="table-light">
+                  <tr><th>Código Interno</th><th>Nombre de la Sala</th><th>Estado</th><th style="width: 180px;">Acciones</th></tr>
+                </thead>
+                <tbody id="tablaAdminSalas"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div id="viewAdminSupervisores" class="d-none">
+          <div class="card shadow-sm border-0 bg-white">
+            <div class="card-header bg-dark text-white py-3 d-flex align-items-center justify-content-between fw-bold">
+              <span><i class="bi bi-person-badge-fill me-2 text-warning"></i> Encargados</span>
+              <button class="btn btn-primary btn-sm fw-bold shadow-sm" onclick="abrirModalCrearSupervisor()">
+                Nuevo Registro
+              </button>
+            </div>
+            <div class="card-body p-0">
+              <table class="table table-hover align-middle text-center mb-0">
+                <thead class="table-light"><tr><th>Usuario</th><th>Nombre Completo</th><th>Salas Asignadas</th><th>Rango</th><th style="width: 180px;">Acciones</th></tr></thead>
+                <tbody id="tablaAdminSupervisores"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div id="viewSupervisorDashboard" class="d-none">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <h5 class="fw-bold m-0"><i class="bi bi-bar-chart-fill me-2 text-warning"></i> Centro de Análisis y Estadísticas</h5>
+            <div class="d-flex gap-2 align-items-center">
+              <label class="small fw-bold text-secondary text-nowrap m-0">Filtrar por:</label>
+              <select id="filtroTiempoDashboard" class="form-select form-select-sm fw-bold border-primary shadow-sm" onchange="renderizarDashboardSupervisor()">
+                <option value="hoy">Ventas de Hoy</option>
+                <option value="mes">Este Mes</option>
+                <option value="todo" selected>Histórico Completo</option>
+              </select>
+              <button class="btn btn-sm btn-primary fw-bold text-nowrap shadow-sm" onclick="renderizarDashboardSupervisor()"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+          </div>
+          
+          <div class="row g-2 mb-3">
+            <div class="col-md-2"><div class="card p-2 shadow-sm border-0 border-start border-4 border-success h-100"><small class="text-muted fw-bold mb-1" style="font-size:0.65rem;">INGRESOS TOTALES</small><h5 class="m-0 fw-bold text-success" id="kpiIngresos">$0.00</h5></div></div>
+            <div class="col-md-2"><div class="card p-2 shadow-sm border-0 border-start border-4 border-danger h-100"><small class="text-muted fw-bold mb-1" style="font-size:0.65rem;">DEUDA GLOBAL SUCURSAL</small><h5 class="m-0 fw-bold text-danger" id="kpiDeuda">$0.00</h5></div></div>
+            <div class="col-md-2"><div class="card p-2 shadow-sm border-0 border-start border-4 border-primary h-100"><small class="text-muted fw-bold mb-1" style="font-size:0.65rem;">TRANSACCIONES (TICKETS)</small><h5 class="m-0 fw-bold text-dark" id="kpiTickets">0</h5></div></div>
+            <div class="col-md-2"><div class="card p-2 shadow-sm border-0 border-start border-4 border-info h-100"><small class="text-muted fw-bold mb-1" style="font-size:0.65rem;">TICKET PROMEDIO</small><h5 class="m-0 fw-bold text-dark" id="kpiTicketPromedio">$0.00</h5></div></div>
+            <div class="col-md-2"><div class="card p-2 shadow-sm border-0 border-start border-4 border-warning h-100"><small class="text-muted fw-bold mb-1" style="font-size:0.65rem;">TOP PRODUCTO</small><h5 class="m-0 fw-bold text-dark text-truncate" id="kpiProdTop">-</h5></div></div>
+            <div class="col-md-2"><div class="card p-2 shadow-sm border-0 border-start border-4 border-dark h-100"><small class="text-muted fw-bold mb-1" style="font-size:0.65rem;">TOP CAJERO</small><h5 class="m-0 fw-bold text-dark text-truncate" id="kpiCajeroTop">-</h5></div></div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-8">
+              <div class="card p-3 shadow-sm border-0 h-100">
+                <h6 class="fw-bold text-secondary mb-2 small">Evolución de Ingresos ($)</h6>
+                <div style="position: relative; height: 220px; width: 100%;"><canvas id="chartEvolucion"></canvas></div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card p-3 shadow-sm border-0 h-100">
+                <h6 class="fw-bold text-secondary mb-2 small">Rendimiento por Turno</h6>
+                <div style="position: relative; height: 220px; width: 100%;"><canvas id="chartTurnosDashboard"></canvas></div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card p-3 shadow-sm border-0">
+                <h6 class="fw-bold text-secondary mb-2 small">Top 5 Productos (Unidades)</h6>
+                <div style="position: relative; height: 200px; width: 100%;"><canvas id="chartTopProductos"></canvas></div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card p-3 shadow-sm border-0">
+                <h6 class="fw-bold text-secondary mb-2 small">Top 5 Mejores Clientes (Volumen $)</h6>
+                <div style="position: relative; height: 200px; width: 100%;"><canvas id="chartMejoresClientes"></canvas></div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card p-3 shadow-sm border-0">
+                <h6 class="fw-bold text-secondary mb-2 small">Métodos de Pago Utilizados</h6>
+                <div style="position: relative; height: 200px; width: 100%;"><canvas id="chartMetodosPagoDashboard"></canvas></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="viewVentasAuditoria" class="d-none">
+          <div class="card shadow-sm border-0 mb-4 bg-white">
+            <div class="card-header bg-dark text-white py-3">
+              <h5 class="m-0 fw-bold fs-6"><i class="bi bi-journal-check me-2 text-warning"></i> Movimientos</h5>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-bordered align-middle mb-0 text-center small" id="tablaDinamicaMatrizTurnos">
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="viewVentasEmpleadoCajero" class="d-none">
+          <div class="card shadow-sm border-0 mb-4 bg-white">
+            <div class="card-header bg-dark text-white py-3 d-flex align-items-center justify-content-between">
+              <h5 class="m-0 fw-bold fs-6"><i class="bi bi-receipt-cutoff me-2 text-warning"></i> Mis Ventas (Turno Asignado)</h5>
+              <button class="btn btn-success btn-sm fw-bold shadow-sm" onclick="abrirModalNuevaVentaCajero()">
+                <i class="bi bi-cart-plus-fill me-1"></i> Nueva Venta
+              </button>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-striped align-middle text-center mb-0 small">
+                  <thead class="table-light">
+                    <tr><th>Recibo ID</th><th>Fecha/Hora</th><th>Cliente</th><th>Método</th><th>Tasa Operativa</th><th>Total USD ($)</th><th>Total VES (Bs)</th><th>Status</th><th>Acciones</th></tr>
+                  </thead>
+                  <tbody id="cuerpoTablaVentasPropiasEmpleado"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="viewClientesGestion" class="d-none">
+          <div class="card shadow-sm border-0 bg-white">
+            <div class="card-header bg-dark text-white py-3 d-flex align-items-center justify-content-between">
+              <h5 class="m-0 fw-bold fs-6"><i class="bi bi-people-fill me-2 text-warning"></i> Panel General de Clientes (Prioridad con Deuda)</h5>
+              <button class="btn btn-success btn-sm fw-bold shadow-sm" id="btnNuevoClienteTop" data-bs-toggle="modal" data-bs-target="#modalAltaCliente">
+                Nuevo Registro
+              </button>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-bordered align-middle text-center mb-0 small">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width: 80px;">ID</th>
+                      <th>Nombre del Cliente</th>
+                      <th style="width: 250px;">Crédito Autorizado ($)</th>
+                      <th style="width: 150px;">Deuda Actual ($)</th>
+                      <th style="width: 180px;">Estado de Cuenta</th>
+                      <th style="width: 250px;">Acciones Administrativas</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tablaClientesRegistradosSala">
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="viewInventario" class="d-none">
+          <div class="card shadow-sm border-0 bg-white">
+            <div class="card-header bg-dark text-white py-3 d-flex align-items-center justify-content-between">
+              <h5 class="m-0 fw-bold fs-6"><i class="bi bi-boxes me-2 text-warning"></i> Control de Stock e Inventario Físico</h5>
+              <button class="btn btn-success btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAltaProducto">
+                Nuevo Registro
+              </button>
+            </div>
+            <div class="card-body p-4">
+              <table class="table table-bordered align-middle text-center">
+                <thead class="table-light">
+                  <tr><th>SKU</th><th>Descripción</th><th>Precio Base ($)</th><th style="width: 180px;">Existencia Física</th><th>Acción</th></tr>
+                </thead>
+                <tbody id="tablaInventarioGestion"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div id="viewSupervisorEmpleados" class="d-none">
+          <div class="card shadow-sm border-0 bg-white">
+            <div class="card-header bg-dark text-white py-3 d-flex align-items-center justify-content-between">
+              <h5 class="m-0 fw-bold fs-6"><i class="bi bi-people me-2 text-warning"></i> Operadores Activos en esta Sala</h5>
+              <button class="btn btn-primary btn-sm fw-bold shadow-sm" onclick="abrirModalCrearEmpleado()">
+                Nuevo Registro
+              </button>
+            </div>
+            <div class="card-body p-0">
+              <table class="table table-hover align-middle text-center mb-0">
+                <thead class="table-light"><tr><th>Usuario</th><th>Nombre del Trabajador</th><th>Sala Asignada</th><th>Rango / Nivel</th><th style="width: 180px;">Acciones</th></tr></thead>
+                <tbody id="tablaSupervisorEmpleados"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div id="viewSupervisorTurnos" class="d-none">
+          <div class="card shadow-sm border-0 bg-white">
+            <div class="card-header bg-dark text-white py-3 d-flex align-items-center justify-content-between">
+              <h5 class="m-0 fw-bold fs-6"><i class="bi bi-clock-history me-2 text-warning"></i> Línea Operativa de Horarios en Sucursal</h5>
+              <button class="btn btn-success btn-sm fw-bold shadow-sm" onclick="abrirModalCrearTurno()">
+                Nuevo Registro
+              </button>
+            </div>
+            <div class="card-body p-0">
+              <table class="table table-hover align-middle text-center mb-0">
+                <thead class="table-light">
+                  <tr><th>Nombre del Turno</th><th>Hora Inicio</th><th>Hora Fin</th><th>Cruza Medianoche</th><th>Acciones</th></tr>
+                </thead>
+                <tbody id="tablaSupervisorTurnosConfigurados"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div id="viewSupervisorMetodosPago" class="d-none">
+          <div class="card shadow-sm border-0 bg-white">
+            <div class="card-header bg-dark text-white py-3 d-flex align-items-center justify-content-between">
+              <h5 class="m-0 fw-bold fs-6"><i class="bi bi-credit-card me-2 text-warning"></i> Métodos de Pago Habilitados en Sala</h5>
+              <button class="btn btn-success btn-sm fw-bold shadow-sm" onclick="abrirModalCrearMetodoPago()">
+                Nuevo Registro
+              </button>
+            </div>
+            <div class="card-body p-0">
+              <table class="table table-hover align-middle text-center mb-0">
+                <thead class="table-light">
+                  <tr><th>Nombre del Método</th><th>Moneda Base</th><th>Acciones</th></tr>
+                </thead>
+                <tbody id="tablaSupervisorMetodosPagoConfigurados"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="./functions.js" ></script>
+</body>
+</html>
