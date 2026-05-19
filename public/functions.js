@@ -1,7 +1,7 @@
 /* ========================================================
    CONFIGURACIÓN Y ESTADO DEL SISTEMA (BACKEND EXPRESS)
 ======================================================== */
-const API_URL = 'http://localhost:3000/api';
+const API_URL = 'http://localhost:3007/api';
 
 let usuarioAutenticadoObj = null; let salaActivaId = null; let turnoActivoId = null; let carritoPOS = [];
 let estadoApp = { adminData: { salas: [], supervisores: [] }, salaActiva: { info: null, turnos: [], metodos: [], articulos: [], clientes: [], ventas: [], abonos: [] } };
