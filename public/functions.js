@@ -23,6 +23,34 @@ function sortPorFechaDesc(a, b) {
     return parseDate(b.fecha || b.fecha_hora) - parseDate(a.fecha || a.fecha_hora);
 }
 
+// === CALCULADORA DE JORNADA (TURNO NOCTURNO) ===
+// Agrupa ventas de madrugada en el día operativo anterior
+function obtenerFechaJornada(fechaCompleta, turnoId) {
+    if (!fechaCompleta) return "";
+    const partes = fechaCompleta.split(' ');
+    const fechaParte = partes[0];
+    const horaParte = partes[1] || "00:00";
+    
+    const turnos = estadoApp.salaActiva.turnos || [];
+    const t = turnos.find(x => x.id === parseInt(turnoId));
+    
+    // Si el turno cruza la medianoche (nocturno)
+    if (t && (t.nocturno || t.cruza_medianoche)) {
+        const hVenta = parseInt(horaParte.split(':')[0]);
+        const hInicio = parseInt((t.inicio || t.hora_inicio).split(':')[0]);
+        
+        // Si la hora de venta es menor a la hora de inicio, es de madrugada.
+        // Ejemplo: Venta a la 01:00 AM, Inicio a las 20:00 PM -> (1 < 20) = Verdadero
+        if (hVenta < hInicio) {
+            const [d, m, y] = fechaParte.split('-');
+            let fechaObj = new Date(y, m - 1, d);
+            fechaObj.setDate(fechaObj.getDate() - 1); // Restamos un día matemáticamente
+            return `${fechaObj.getDate()}-${fechaObj.getMonth() + 1}-${fechaObj.getFullYear()}`;
+        }
+    }
+    return fechaParte;
+}
+
 window.onload = function() {
     bootstrapAlertModal = new bootstrap.Modal(document.getElementById('modalAlertasSistema'));
     bootstrapConfirmModal = new bootstrap.Modal(document.getElementById('modalConfirmarEliminacion'));
@@ -772,14 +800,18 @@ function renderizarMatrizVentasAuditoria() {
     if(turnos.length === 0) { tabla.innerHTML = `<tbody><tr><td class="p-3 text-muted">No hay turnos.</td></tr></tbody>`; return; }
     
     let ventasPorFecha = {}; 
-    ventas.forEach(v => { const fechaReal = v.fecha ? v.fecha.split(' ')[0] : v.fecha_hora.split(' ')[0]; if(!ventasPorFecha[fechaReal]) ventasPorFecha[fechaReal] = []; ventasPorFecha[fechaReal].push(v); });
+    ventas.forEach(v => { 
+        // Usamos la nueva calculadora de jornada
+        const fechaJornada = obtenerFechaJornada(v.fecha || v.fecha_hora, v.turno_id); 
+        if(!ventasPorFecha[fechaJornada]) ventasPorFecha[fechaJornada] = []; 
+        ventasPorFecha[fechaJornada].push(v); 
+    });
     
     let thTurnos = ""; let subHeaders = "";
-    turnos.forEach(t => { thTurnos += `<th colspan="2" class="table-secondary small">${t.name || t.nombre} ${t.nocturno || t.cruza_medianoche ? '' : ''}</th>`; subHeaders += `<th class="text-muted" style="font-size:0.75rem;">USD ($)</th><th class="text-muted" style="font-size:0.75rem;">Ver</th>`; });
+    turnos.forEach(t => { thTurnos += `<th colspan="2" class="table-secondary small">${t.name || t.nombre} ${t.nocturno || t.cruza_medianoche ? '🌙' : '☀️'}</th>`; subHeaders += `<th class="text-muted" style="font-size:0.75rem;">USD ($)</th><th class="text-muted" style="font-size:0.75rem;">Ver</th>`; });
     
-    let headerHtml = `<thead class="table-light align-middle"><tr><th rowspan="2" class="bg-dark text-white text-center">Fecha</th>${thTurnos}<th colspan="2" class="table-success text-dark text-center">Cierre Total General</th></tr><tr>${subHeaders}<th class="text-dark bg-light fw-bold" style="font-size:0.75rem;">Total ($)</th><th class="text-dark bg-light" style="font-size:0.75rem;">Acción</th></tr></thead><tbody>`;
+    let headerHtml = `<thead class="table-light align-middle"><tr><th rowspan="2" class="bg-dark text-white text-center">Jornada</th>${thTurnos}<th colspan="2" class="table-success text-dark text-center">Cierre Total General</th></tr><tr>${subHeaders}<th class="text-dark bg-light fw-bold" style="font-size:0.75rem;">Total ($)</th><th class="text-dark bg-light" style="font-size:0.75rem;">Acción</th></tr></thead><tbody>`;
     
-    // ORDENA LOS DÍAS DESDE EL MÁS RECIENTE
     const fechas = Object.keys(ventasPorFecha).sort((a, b) => {
         const [d1, m1, y1] = a.split('-'); const [d2, m2, y2] = b.split('-');
         return new Date(y2, m2-1, d2).getTime() - new Date(y1, m1-1, d1).getTime();
@@ -802,12 +834,13 @@ function renderizarMatrizVentasAuditoria() {
 }
 
 // 5. AUDITORÍA TRANSACCIONAL (SUPERVISOR)
-function verDetalleTurnoEspecifico(fecha, turnoTargetId) {
+function verDetalleTurnoEspecifico(fechaJornadaTarget, turnoTargetId) {
     const ventas = estadoApp.salaActiva.ventas || []; 
-    const targetTickets = ventas.filter(v => (v.fecha ? v.fecha.split(' ')[0] : v.fecha_hora.split(' ')[0]) === fecha && parseInt(v.turno_id) === turnoTargetId); 
+    // Filtramos usando la fecha calculada
+    const targetTickets = ventas.filter(v => obtenerFechaJornada(v.fecha || v.fecha_hora, v.turno_id) === fechaJornadaTarget && parseInt(v.turno_id) === turnoTargetId); 
     const tObj = estadoApp.salaActiva.turnos.find(t => t.id === turnoTargetId); 
     
-    document.getElementById('lblTituloModalTurno').innerText = `Auditoría Transaccional - Día: ${fecha} | Turno: ${tObj.name || tObj.nombre}`; 
+    document.getElementById('lblTituloModalTurno').innerText = `Auditoría Transaccional - Jornada: ${fechaJornadaTarget} | Turno: ${tObj.name || tObj.nombre}`; 
     const tbodyModal = document.getElementById('tablaDetallesEspecificosTurno'); tbodyModal.innerHTML = "";
     
     targetTickets.sort(sortPorFechaDesc);
@@ -818,10 +851,8 @@ function verDetalleTurnoEspecifico(fecha, turnoTargetId) {
         targetTickets.forEach(t => { 
             const mod = t.mod_pago || t.metodo_pago;
             const esCredito = mod.toLowerCase().includes('crédito') || mod.toLowerCase().includes('credito') || mod.toLowerCase().includes('fiado');
-            
             let tasaStr = esCredito ? '<span class="text-muted">N/A</span>' : `${parseFloat(t.tasa || t.tasa_aplicada).toFixed(2)} Bs`;
             let vesStr = esCredito ? '<span class="text-muted">N/A</span>' : `${parseFloat(t.ves || t.total_ves).toFixed(2)} Bs`;
-            
             let statusBadge = `<span class="badge bg-success">Pagada</span>`;
             let btnAbonos = '';
 
@@ -829,7 +860,6 @@ function verDetalleTurnoEspecifico(fecha, turnoTargetId) {
                 const abonosTicket = (estadoApp.salaActiva.abonos || []).filter(a => a.venta_id === t.id);
                 const totalAbonado = abonosTicket.reduce((sum, a) => sum + parseFloat(a.monto || a.monto_usd), 0);
                 const deuda = parseFloat(t.usd || t.total_usd) - totalAbonado;
-                
                 statusBadge = deuda > 0 ? `<span class="badge bg-danger">Debe $${deuda.toFixed(2)}</span>` : `<span class="badge bg-success">Pagada</span>`;
                 btnAbonos = `<button class="btn btn-sm btn-secondary py-0 px-2 fw-bold ms-1" onclick="abrirAuditoriaAbonosCliente('${t.id}')" title="Ver Abonos"><i class="bi bi-list-check"></i> Abonos</button>`;
             }
@@ -841,12 +871,13 @@ function verDetalleTurnoEspecifico(fecha, turnoTargetId) {
 }
 
 // 6. DESGLOSE GENERAL DE CIERRE (SUPERVISOR)
-function verDesgloseCierreTotalGeneral(fecha) {
+function verDesgloseCierreTotalGeneral(fechaJornadaTarget) {
     const ventas = estadoApp.salaActiva.ventas || []; 
-    const targetTickets = ventas.filter(v => (v.fecha ? v.fecha.split(' ')[0] : v.fecha_hora.split(' ')[0]) === fecha); 
+    // Filtramos usando la fecha calculada
+    const targetTickets = ventas.filter(v => obtenerFechaJornada(v.fecha || v.fecha_hora, v.turno_id) === fechaJornadaTarget); 
     const turnos = estadoApp.salaActiva.turnos || []; 
     
-    document.getElementById('lblTituloModalTurno').innerText = `Desglose Cierre Total - Jornada: ${fecha}`; 
+    document.getElementById('lblTituloModalTurno').innerText = `Desglose Cierre Total - Jornada: ${fechaJornadaTarget}`; 
     const tbodyModal = document.getElementById('tablaDetallesEspecificosTurno'); tbodyModal.innerHTML = "";
     
     targetTickets.sort(sortPorFechaDesc);
@@ -859,10 +890,8 @@ function verDesgloseCierreTotalGeneral(fecha) {
             const nombreTurno = tObj ? (tObj.name || tObj.nombre) : "Desconocido"; 
             const mod = t.mod_pago || t.metodo_pago;
             const esCredito = mod.toLowerCase().includes('crédito') || mod.toLowerCase().includes('credito') || mod.toLowerCase().includes('fiado');
-            
             let tasaStr = esCredito ? '<span class="text-muted">N/A</span>' : `${parseFloat(t.tasa || t.tasa_aplicada).toFixed(2)} Bs`;
             let vesStr = esCredito ? '<span class="text-muted">N/A</span>' : `${parseFloat(t.ves || t.total_ves).toFixed(2)} Bs`;
-            
             let statusBadge = `<span class="badge bg-success">Pagada</span>`;
             let btnAbonos = '';
 
@@ -870,7 +899,6 @@ function verDesgloseCierreTotalGeneral(fecha) {
                 const abonosTicket = (estadoApp.salaActiva.abonos || []).filter(a => a.venta_id === t.id);
                 const totalAbonado = abonosTicket.reduce((sum, a) => sum + parseFloat(a.monto || a.monto_usd), 0);
                 const deuda = parseFloat(t.usd || t.total_usd) - totalAbonado;
-                
                 statusBadge = deuda > 0 ? `<span class="badge bg-danger">Debe $${deuda.toFixed(2)}</span>` : `<span class="badge bg-success">Pagada</span>`;
                 btnAbonos = `<button class="btn btn-sm btn-secondary py-0 px-2 fw-bold ms-1" onclick="abrirAuditoriaAbonosCliente('${t.id}')" title="Ver Abonos"><i class="bi bi-list-check"></i> Abonos</button>`;
             }
@@ -880,6 +908,7 @@ function verDesgloseCierreTotalGeneral(fecha) {
     }
     bootstrapDetalleTurnoModal.show();
 }
+
 async function procesarNuevaTasaSupervisor(e) { e.preventDefault(); try { await fetchAPI(`/salas/${salaActivaId}/tasa`, 'PUT', { tasa: parseFloat(document.getElementById('inputMontoNuevaTasa').value) }); bootstrapTasaModal.hide(); await sincronizarSalaConBackend(); actualizarKpisYResumenSala(); } catch(err){} }
 async function procesarNuevoCreditoGlobalSupervisor(e) { e.preventDefault(); try { await fetchAPI(`/salas/${salaActivaId}/credito`, 'PUT', { limite: parseFloat(document.getElementById('inputMontoNuevoCreditoGlobal').value) }); bootstrapCreditoGlobalModal.hide(); await sincronizarSalaConBackend(); actualizarKpisYResumenSala(); } catch(err){} }
 function abrirModalModificarTasa() { document.getElementById('inputMontoNuevaTasa').value = parseFloat(estadoApp.salaActiva.info.tasa); bootstrapTasaModal.show(); }
@@ -906,7 +935,7 @@ function renderizarDashboardSupervisor() {
     // 1. Filtrar las transacciones según el rango seleccionado
     const ventas = ventasFull.filter(v => {
         if (filtro === 'todo') return true;
-        const partes = (v.fecha || v.fecha_hora).split(' ')[0].split('-');
+        const partes = obtenerFechaJornada(v.fecha || v.fecha_hora, v.turno_id).split('-');
         const fVenta = new Date(partes[2], partes[1]-1, partes[0]);
         if (filtro === 'hoy') return isMismoDia(fVenta, hoy);
         if (filtro === 'mes') return isMismoMes(fVenta, hoy);
@@ -939,7 +968,8 @@ function renderizarDashboardSupervisor() {
         }
 
         // AGRUPACIÓN DINÁMICA E INTELIGENTE INCLUYENDO EL AÑO
-        const [fechaStr, horaStr] = (v.fecha || v.fecha_hora).split(' ');
+        const horaStr = (v.fecha || v.fecha_hora).split(' ')[1] || "00:00";
+        const fechaStr = obtenerFechaJornada(v.fecha || v.fecha_hora, v.turno_id);
         let keyEvo = fechaStr; 
         
         if (filtro === 'hoy') {
