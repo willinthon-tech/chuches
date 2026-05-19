@@ -164,6 +164,11 @@ async function procesarLoginInicial(e) {
         else {
             document.getElementById('formLoginAutenticacion').classList.add('d-none');
             document.getElementById('bloquePostLoginSeleccionSala').classList.remove('d-none');
+            
+            // Mejora Visual: Mostrar nombre y rol en el modal de login
+            document.getElementById('txtBienvenidaPostLogin').innerText = `¡Hola, @${usuarioAutenticadoObj.username}!`;
+            document.getElementById('txtRolPostLogin').innerHTML = `<span class="badge ${usuarioAutenticadoObj.rol === 'SUPERVISOR' ? 'bg-primary' : 'bg-secondary'}">${usuarioAutenticadoObj.rol}</span>`;
+
             estadoApp.adminData = await fetchAPI('/admin'); 
             const selSala = document.getElementById('authSelectorSala'); selSala.innerHTML = "";
             usuarioAutenticadoObj.salasAsignadas.forEach(id => { const s = estadoApp.adminData.salas.find(x => x.id === id); if(s) selSala.innerHTML += `<option value="${s.id}">${s.name || s.nombre}</option>`; });
@@ -175,14 +180,37 @@ async function procesarLoginInicial(e) {
 async function actualizarSelectorTurnosLogin() {
     const salaId = parseInt(document.getElementById('authSelectorSala').value);
     const selTurno = document.getElementById('authSelectorTurno');
-    if (usuarioAutenticadoObj.rol === "EMPLEADO") {
-        document.getElementById('wrapperSelectorTurnoLogin').classList.remove('d-none');
+    const wrapperTurno = document.getElementById('wrapperSelectorTurnoLogin');
+
+    // Nos aseguramos de leer bien el rol sin importar mayúsculas
+    const rolUsuario = (usuarioAutenticadoObj.rol || "").trim().toUpperCase();
+
+    if (rolUsuario === "EMPLEADO") {
+        wrapperTurno.classList.remove('d-none');
         selTurno.innerHTML = "<option value=''>Cargando turnos...</option>";
         estadoApp.salaActiva = await fetchAPI('/sync/' + salaId);
-        selTurno.innerHTML = "";
-        if (estadoApp.salaActiva.turnos.length === 0) selTurno.innerHTML = `<option value="">⚠️ No hay turnos creados</option>`;
-        else estadoApp.salaActiva.turnos.forEach(t => selTurno.innerHTML += `<option value="${t.id}">${t.name || t.nombre} (${t.inicio || t.hora_inicio} - ${t.fin || t.hora_fin})</option>`);
-    } else { document.getElementById('wrapperSelectorTurnoLogin').classList.add('d-none'); }
+        
+        selTurno.innerHTML = "<option value='' disabled selected>-- Elige tu turno activo --</option>";
+        
+        if (estadoApp.salaActiva.turnos.length === 0) {
+            selTurno.innerHTML = `<option value="">⚠️ No hay turnos creados</option>`;
+        } else {
+            estadoApp.salaActiva.turnos.forEach(t => {
+                const estaActivo = verificarHoraEnTurno(t);
+                
+                if (estaActivo) {
+                    // Turno en horario: Se puede seleccionar normal
+                    selTurno.innerHTML += `<option value="${t.id}">${t.name || t.nombre} (${t.inicio || t.hora_inicio} - ${t.fin || t.hora_fin})</option>`;
+                } else {
+                    // MAGIA UX: Turno cerrado, se bloquea la etiqueta <option>
+                    selTurno.innerHTML += `<option value="${t.id}" class="text-muted" disabled>⛔ ${t.name || t.nombre} (Cerrado)</option>`;
+                }
+            });
+        }
+    } else {
+        // Si es SUPERVISOR o ADMIN, no se muestra ni se exige el turno
+        wrapperTurno.classList.add('d-none');
+    }
 }
 
 async function sincronizarSalaConBackend() { estadoApp.salaActiva = await fetchAPI('/sync/' + salaActivaId); }
