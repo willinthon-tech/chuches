@@ -158,6 +158,12 @@ app.put('/api/articulos/:id/stock', async (req, res) => {
         res.json({success: true});
     } catch(err) { res.status(500).json({error: err.message}); }
 });
+app.put('/api/articulos/:id', async (req, res) => {
+    try {
+        await pool.query("UPDATE articulos SET name=?, price_usd=? WHERE id=?", [req.body.name, req.body.price_usd, req.params.id]);
+        res.json({success: true});
+    } catch(err) { res.status(500).json({error: err.message}); }
+});
 app.delete('/api/articulos/:id', async (req, res) => {
     try {
         await pool.query("DELETE FROM articulos WHERE id=?", [req.params.id]);

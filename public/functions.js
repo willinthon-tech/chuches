@@ -834,10 +834,71 @@ function abrirModalEditarSupervisor(id) { const sup = estadoApp.adminData.superv
 async function crearSupervisorAdmin(e) { e.preventDefault(); const payload = { username: document.getElementById('inputUsernameSup').value.trim(), password: document.getElementById('inputPasswordSup').value, name: document.getElementById('inputNombreSup').value.trim(), rol: "SUPERVISOR", salasAsignadas: Array.from(document.getElementById('inputSalasAsignadasSup').selectedOptions).map(o => parseInt(o.value)) }; const id = document.getElementById('inputEditSupId').value; try { if(id) await fetchAPI(`/supervisores/${id}`, 'PUT', payload); else await fetchAPI('/supervisores', 'POST', payload); modalSupervisorInst.hide(); estadoApp.adminData = await fetchAPI('/admin'); renderizarSupervisoresAdminTable(); } catch(err){} }
 function eliminarSupervisorAdminConModal(id, username) { solicitarConfirmacionEliminar(`¿Eliminar a @${username}?`, async function() { try { await fetchAPI(`/supervisores/${id}`, 'DELETE'); estadoApp.adminData = await fetchAPI('/admin'); renderizarSupervisoresAdminTable(); } catch(err){} }); }
 
-function renderizarModuloInventarioGestion() { const tbody = document.getElementById('tablaInventarioGestion'); tbody.innerHTML = ""; const articulos = estadoApp.salaActiva.articulos; if(articulos.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="text-muted p-3">No hay productos.</td></tr>`; return; } articulos.forEach(art => { tbody.innerHTML += `<tr><td><code>${art.code || art.codigo}</code></td><td><strong>${art.name || art.nombre}</strong></td><td>$${parseFloat(art.price_usd || art.precio_usd).toFixed(2)}</td><td><span class="badge bg-light text-dark border font-monospace px-3 fs-6">${art.stock} Un</span></td><td><div class="d-flex gap-1 justify-content-center"><button class="btn btn-sm btn-dark" onclick="abrirModalAjustarStock(${art.id})"><i class="bi bi-box-arrow-in-down"></i> Surtir</button><button class="btn btn-sm btn-danger" onclick="eliminarProductoSupervisorConModal(${art.id})"><i class="bi bi-trash3-fill"></i></button></div></td></tr>`; }); }
+function renderizarModuloInventarioGestion() { 
+    const tbody = document.getElementById('tablaInventarioGestion'); tbody.innerHTML = ""; 
+    const articulos = estadoApp.salaActiva.articulos; 
+    if(articulos.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="text-muted p-3">No hay productos.</td></tr>`; return; } 
+    articulos.forEach(art => { 
+        tbody.innerHTML += `<tr><td><code>${art.code || art.codigo}</code></td><td><strong>${art.name || art.nombre}</strong></td><td>$${parseFloat(art.price_usd || art.precio_usd).toFixed(2)}</td><td><span class="badge bg-light text-dark border font-monospace px-3 fs-6">${art.stock} Un</span></td><td><div class="d-flex gap-1 justify-content-center"><button class="btn btn-sm btn-outline-warning" onclick="abrirModalEditarProducto(${art.id})" title="Editar"><i class="bi bi-pencil-fill"></i></button><button class="btn btn-sm btn-dark" onclick="abrirModalAjustarStock(${art.id})"><i class="bi bi-box-arrow-in-down"></i> Surtir</button><button class="btn btn-sm btn-danger" onclick="eliminarProductoSupervisorConModal(${art.id})"><i class="bi bi-trash3-fill"></i></button></div></td></tr>`; 
+    }); 
+}
 function abrirModalAjustarStock(artId) { const art = estadoApp.salaActiva.articulos.find(a => a.id === artId); if (art) { document.getElementById('ajusteStockArtId').value = art.id; document.getElementById('ajusteStockNombreArt').innerText = art.name || art.nombre; document.getElementById('ajusteStockInput').value = art.stock; modalAjustarStockInst.show(); } }
 async function guardarAjusteStock(e) { e.preventDefault(); const artId = parseInt(document.getElementById('ajusteStockArtId').value); const nStock = parseInt(document.getElementById('ajusteStockInput').value); try { await fetchAPI(`/articulos/${artId}/stock`, 'PUT', { stock: nStock }); modalAjustarStockInst.hide(); await sincronizarSalaConBackend(); renderizarModuloInventarioGestion(); actualizarKpisYResumenSala(); } catch(err) {} }
-async function crearProductoSupervisor(e) { e.preventDefault(); const payload = { sala_id: salaActivaId, code: document.getElementById('inputProdCode').value.trim(), name: document.getElementById('inputProdName').value.trim(), price_usd: parseFloat(document.getElementById('inputProdPrice').value), stock: parseInt(document.getElementById('inputProdStockInicial').value) || 0 }; try { await fetchAPI('/articulos', 'POST', payload); modalProductoInst.hide(); await sincronizarSalaConBackend(); renderizarModuloInventarioGestion(); actualizarKpisYResumenSala(); } catch(err) {} }
+async function crearProductoSupervisor(e) { 
+    e.preventDefault(); 
+    const payload = { 
+        sala_id: salaActivaId, 
+        code: document.getElementById('inputProdCode').value.trim(), 
+        name: document.getElementById('inputProdName').value.trim(), 
+        price_usd: parseFloat(document.getElementById('inputProdPrice').value), 
+        stock: parseInt(document.getElementById('inputProdStockInicial').value) || 0 
+    }; 
+    try { 
+        await fetchAPI('/articulos', 'POST', payload); 
+        modalProductoInst.hide(); 
+        document.getElementById('formNuevoProducto').reset(); // SOLUCIÓN: Limpia la data anterior
+        await sincronizarSalaConBackend(); 
+        renderizarModuloInventarioGestion(); 
+        actualizarKpisYResumenSala(); 
+        lanzarAlertaHomedeneda("Éxito", "Producto registrado correctamente.", "exito");
+    } catch(err) {
+        lanzarAlertaHomedeneda("Error", "No se pudo registrar el producto.", "error");
+    } 
+}
+
+// NUEVAS FUNCIONES PARA EDITAR PRODUCTOS
+let modalEditarProductoInst = null;
+
+function abrirModalEditarProducto(id) {
+    if(!modalEditarProductoInst) modalEditarProductoInst = new bootstrap.Modal(document.getElementById('modalEditarProducto'));
+    const art = estadoApp.salaActiva.articulos.find(a => a.id === id);
+    if (art) {
+        document.getElementById('editProdId').value = art.id;
+        document.getElementById('editProdName').value = art.name || art.nombre;
+        document.getElementById('editProdPrice').value = art.price_usd || art.precio_usd;
+        modalEditarProductoInst.show();
+    }
+}
+
+async function guardarEdicionProducto(e) {
+    e.preventDefault();
+    const id = document.getElementById('editProdId').value;
+    const payload = {
+        name: document.getElementById('editProdName').value.trim(),
+        price_usd: parseFloat(document.getElementById('editProdPrice').value)
+    };
+    try {
+        await fetchAPI(`/articulos/${id}`, 'PUT', payload);
+        if(modalEditarProductoInst) modalEditarProductoInst.hide();
+        await sincronizarSalaConBackend();
+        renderizarModuloInventarioGestion();
+        actualizarKpisYResumenSala();
+        lanzarAlertaHomedeneda("Éxito", "Producto actualizado.", "exito");
+    } catch(err) {
+        lanzarAlertaHomedeneda("Error", "No se pudo actualizar.", "error");
+    }
+}
+
 function eliminarProductoSupervisorConModal(artId) { solicitarConfirmacionEliminar(`¿Desea eliminar este producto?`, async function() { try { await fetchAPI(`/articulos/${artId}`, 'DELETE'); await sincronizarSalaConBackend(); renderizarModuloInventarioGestion(); actualizarKpisYResumenSala(); } catch(err) {} }); }
 
 function renderizarEmpleadosSalaTable() { const tbody = document.getElementById('tablaSupervisorEmpleados'); tbody.innerHTML = ""; const emp = estadoApp.adminData.supervisores.filter(u => u.salasAsignadas.includes(salaActivaId)); if(emp.length===0){ tbody.innerHTML=`<tr><td colspan="5" class="text-muted p-3">No hay personal.</td></tr>`; return;} emp.forEach(u => { tbody.innerHTML += `<tr><td>@${u.username}</td><td>${u.name || u.nombre}</td><td>${estadoApp.salaActiva.info.name || estadoApp.salaActiva.info.nombre}</td><td><span class="badge bg-secondary">${u.rol}</span></td><td><div class="d-flex gap-1 justify-content-center"><button class="btn btn-sm btn-outline-primary" onclick="abrirModalEditarEmpleado(${u.id})"><i class="bi bi-pencil-fill"></i></button><button class="btn btn-sm btn-outline-danger" onclick="eliminarEmpleadoSupervisorConModal(${u.id}, '${u.username}')"><i class="bi bi-trash3-fill"></i></button></div></td></tr>`; }); }
