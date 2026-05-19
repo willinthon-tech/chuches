@@ -167,7 +167,7 @@ async function procesarLoginInicial(e) {
             
             // Mejora Visual: Mostrar nombre y rol en el modal de login
             document.getElementById('txtBienvenidaPostLogin').innerText = `¡Hola, @${usuarioAutenticadoObj.username}!`;
-            document.getElementById('txtRolPostLogin').innerHTML = `<span class="badge ${usuarioAutenticadoObj.rol === 'SUPERVISOR' ? 'bg-primary' : 'bg-secondary'}">${usuarioAutenticadoObj.rol}</span>`;
+            document.getElementById('txtRolPostLogin').innerHTML = `<span class="badge ${usuarioAutenticadoObj.rol === 'SUPERVISOR' ? 'bg-primary' : 'bg-secondary'}">${usuarioAutenticadoObj.rol === 'EMPLEADO' ? 'CAJER@' : 'ENCARGAD@'}</span>`;
 
             estadoApp.adminData = await fetchAPI('/admin'); 
             const selSala = document.getElementById('authSelectorSala'); selSala.innerHTML = "";
