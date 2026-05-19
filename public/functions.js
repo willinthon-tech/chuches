@@ -249,7 +249,7 @@ async function entrarAlDashboardFinal(fromSession = false) {
     document.getElementById('modalAuthSistema').classList.remove('show', 'd-block');
     document.getElementById('dashboardPrincipal').classList.remove('d-none');
     document.getElementById('lblUsernameMenu').innerText = `@${usuarioAutenticadoObj.username}`;
-    document.getElementById('lblRolMenu').innerText = usuarioAutenticadoObj.rol;
+    document.getElementById('lblRolMenu').innerText = usuarioAutenticadoObj.rol === 'EMPLEADO' ? 'CAJER@' : 'ENCARGAD@'
     const menu = document.getElementById('menuNavegacionDinamico');
     
     if (usuarioAutenticadoObj.rol === "ADMIN") {
