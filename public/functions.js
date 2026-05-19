@@ -808,7 +808,7 @@ function renderizarMatrizVentasAuditoria() {
     });
     
     let thTurnos = ""; let subHeaders = "";
-    turnos.forEach(t => { thTurnos += `<th colspan="2" class="table-secondary small">${t.name || t.nombre} ${t.nocturno || t.cruza_medianoche ? '🌙' : '☀️'}</th>`; subHeaders += `<th class="text-muted" style="font-size:0.75rem;">USD ($)</th><th class="text-muted" style="font-size:0.75rem;">Ver</th>`; });
+    turnos.forEach(t => { thTurnos += `<th colspan="2" class="table-secondary small">${t.name || t.nombre} ${t.nocturno || t.cruza_medianoche ? '' : ''}</th>`; subHeaders += `<th class="text-muted" style="font-size:0.75rem;">USD ($)</th><th class="text-muted" style="font-size:0.75rem;">Ver</th>`; });
     
     let headerHtml = `<thead class="table-light align-middle"><tr><th rowspan="2" class="bg-dark text-white text-center">Jornada</th>${thTurnos}<th colspan="2" class="table-success text-dark text-center">Cierre Total General</th></tr><tr>${subHeaders}<th class="text-dark bg-light fw-bold" style="font-size:0.75rem;">Total ($)</th><th class="text-dark bg-light" style="font-size:0.75rem;">Acción</th></tr></thead><tbody>`;
     
