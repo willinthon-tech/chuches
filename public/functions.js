@@ -23,6 +23,27 @@ function sortPorFechaDesc(a, b) {
     return parseDate(b.fecha || b.fecha_hora) - parseDate(a.fecha || a.fecha_hora);
 }
 
+// === VERIFICADOR ESTRICTO DE HORARIO DE TURNO ===
+function verificarHoraEnTurno(tObj) {
+    if (!tObj) return false;
+    const ahora = new Date();
+    const minsAhora = ahora.getHours() * 60 + ahora.getMinutes();
+    const tInicio = tObj.inicio || tObj.hora_inicio;
+    const tFin = tObj.fin || tObj.hora_fin;
+    
+    const [hIni, mIni] = tInicio.split(':').map(Number);
+    const [hFin, mFin] = tFin.split(':').map(Number);
+    const minsIni = hIni * 60 + mIni;
+    const minsFin = hFin * 60 + mFin;
+    
+    // Si el turno es nocturno (cruza la medianoche)
+    if (tObj.nocturno || tObj.cruza_medianoche || minsFin < minsIni) {
+        return (minsAhora >= minsIni || minsAhora <= minsFin);
+    } else {
+        return (minsAhora >= minsIni && minsAhora <= minsFin);
+    }
+}
+
 // === CALCULADORA DE JORNADA (TURNO NOCTURNO) ===
 // Agrupa ventas de madrugada en el día operativo anterior
 function obtenerFechaJornada(fechaCompleta, turnoId) {
@@ -171,17 +192,38 @@ async function entrarAlDashboardFinal(fromSession = false) {
         if (usuarioAutenticadoObj.rol === "EMPLEADO") {
             const tSel = document.getElementById('authSelectorTurno').value;
             if (!tSel || tSel.includes("⚠️")) { lanzarAlertaHomedeneda("Acceso Denegado", "Falta turno en sucursal.", "error"); return; }
-            turnoActivoId = parseInt(tSel);
+            
+            const tId = parseInt(tSel);
+            const tObj = estadoApp.salaActiva.turnos.find(t => t.id === tId);
+            
+            // REGLA DE ACCESO: Bloqueo inmediato si intenta entrar fuera de hora
+            if (!verificarHoraEnTurno(tObj)) {
+                lanzarAlertaHomedeneda("Turno Restringido", `No puedes acceder al sistema fuera de tu horario operativo asignado (${tObj.inicio || tObj.hora_inicio} a ${tObj.fin || tObj.hora_fin}).`, "error");
+                return;
+            }
+            turnoActivoId = tId;
         }
         if (usuarioAutenticadoObj.rol !== "ADMIN") salaActivaId = parseInt(document.getElementById('authSelectorSala').value);
         localStorage.setItem('chuches_session', JSON.stringify({ user: usuarioAutenticadoObj, sala: salaActivaId, turno: turnoActivoId }));
+    } else {
+        // Validación de seguridad para sesiones persistentes automáticas
+        if (usuarioAutenticadoObj.rol === "EMPLEADO" && turnoActivoId) {
+            const tObj = estadoApp.salaActiva.turnos.find(t => t.id === turnoActivoId);
+            if (!verificarHoraEnTurno(tObj)) {
+                localStorage.removeItem('chuches_session');
+                location.reload();
+                return;
+            }
+        }
     }
+    
     document.getElementById('modalAuthSistema').classList.add('d-none');
     document.getElementById('modalAuthSistema').classList.remove('show', 'd-block');
     document.getElementById('dashboardPrincipal').classList.remove('d-none');
     document.getElementById('lblUsernameMenu').innerText = `@${usuarioAutenticadoObj.username}`;
     document.getElementById('lblRolMenu').innerText = usuarioAutenticadoObj.rol;
     const menu = document.getElementById('menuNavegacionDinamico');
+    
     if (usuarioAutenticadoObj.rol === "ADMIN") {
         estadoApp.adminData = await fetchAPI('/admin');
         document.getElementById('lblSalaActivaName').innerText = "Global Admin";
@@ -192,9 +234,15 @@ async function entrarAlDashboardFinal(fromSession = false) {
         await sincronizarSalaConBackend();
         if (usuarioAutenticadoObj.rol === "SUPERVISOR") estadoApp.adminData = await fetchAPI('/admin');
         document.getElementById('lblSalaActivaName').innerText = estadoApp.salaActiva.info.name || estadoApp.salaActiva.info.nombre;
-        document.getElementById('indicadoresResumenSala').classList.remove('d-none');
+        
+        if (usuarioAutenticadoObj.rol === "SUPERVISOR") {
+            document.getElementById('indicadoresResumenSala').classList.add('d-none');
+        } else {
+            document.getElementById('indicadoresResumenSala').classList.remove('d-none');
+        }
+        
         const badge = document.getElementById('lblTurnoActivoBadgeContainer');
-        if (turnoActivoId) { const t = estadoApp.salaActiva.turnos.find(t => t.id === turnoActivoId); if(t) badge.innerHTML = `<span class="badge bg-danger mt-1">${t.name || t.nombre}</span>`; }
+        if (turnoActivoId) { const t = estadoApp.salaActiva.turnos.find(t => t.id === turnoActivoId); if(t) badge.innerHTML = `<span class="badge bg-danger mt-1"><i class="bi bi-moon-stars-fill"></i> ${t.name || t.nombre}</span>`; }
         let itemsMenu = '';
         if (usuarioAutenticadoObj.rol === "EMPLEADO") {
             document.getElementById('wrapperBtnCambiarTasa').innerHTML = ""; document.getElementById('wrapperBtnCambiarCreditoGlobal').innerHTML = "";
@@ -203,16 +251,9 @@ async function entrarAlDashboardFinal(fromSession = false) {
         } else if (usuarioAutenticadoObj.rol === "SUPERVISOR") {
             document.getElementById('wrapperBtnCambiarTasa').innerHTML = `<button class="btn btn-sm btn-outline-success py-0 px-2 fw-bold" onclick="abrirModalModificarTasa()"><i class="bi bi-pencil-square"></i></button>`;
             document.getElementById('wrapperBtnCambiarCreditoGlobal').innerHTML = `<button class="btn btn-sm btn-outline-warning py-0 px-2 fw-bold" onclick="abrirModalModificarCreditoGlobal()"><i class="bi bi-pencil-square"></i> Ajustar</button>`;
-            
-            // AQUÍ AGREGAMOS EL DASHBOARD DE PRIMERO
-            itemsMenu += `<li class="nav-item"><a class="nav-link active" onclick="navegarOperacionesA('supervisorDashboard')"><i class="bi bi-bar-chart-fill me-2"></i>Estadísticas</a></li>`;
-            
-            itemsMenu += `<li class="nav-item"><a class="nav-link" onclick="navegarOperacionesA('ventasAuditoria')"><i class="bi bi-journal-check me-2"></i>Auditoría</a></li><li class="nav-item"><a class="nav-link" onclick="navegarOperacionesA('clientesGestion')"><i class="bi bi-person-gear me-2"></i>Clientes</a></li><li class="nav-item"><a class="nav-link" onclick="navegarOperacionesA('inventario')"><i class="bi bi-boxes me-2"></i>Inventario</a></li><li class="nav-item"><a class="nav-link" onclick="navegarOperacionesA('supervisorEmpleados')"><i class="bi bi-people me-2"></i>Personal</a></li><li class="nav-item"><a class="nav-link" onclick="navegarOperacionesA('supervisorTurnos')"><i class="bi bi-clock-history me-2"></i>Turnos</a></li><li class="nav-item"><a class="nav-link" onclick="navegarOperacionesA('supervisorMetodosPago')"><i class="bi bi-credit-card-fill me-2"></i>Pagos</a></li>`;
-            
-            // Cargar Dashboard por defecto
+            itemsMenu += `<li class="nav-item"><a class="nav-link active" onclick="navegarOperacionesA('supervisorDashboard')"><i class="bi bi-bar-chart-fill me-2"></i>Estadísticas</a></li><li class="nav-item"><a class="nav-link" onclick="navegarOperacionesA('ventasAuditoria')"><i class="bi bi-journal-check me-2"></i>Auditoría</a></li><li class="nav-item"><a class="nav-link" onclick="navegarOperacionesA('clientesGestion')"><i class="bi bi-person-gear me-2"></i>Clientes</a></li><li class="nav-item"><a class="nav-link" onclick="navegarOperacionesA('inventario')"><i class="bi bi-boxes me-2"></i>Inventario</a></li><li class="nav-item"><a class="nav-link" onclick="navegarOperacionesA('supervisorEmpleados')"><i class="bi bi-people me-2"></i>Personal</a></li><li class="nav-item"><a class="nav-link" onclick="navegarOperacionesA('supervisorTurnos')"><i class="bi bi-clock-history me-2"></i>Turnos</a></li><li class="nav-item"><a class="nav-link" onclick="navegarOperacionesA('supervisorMetodosPago')"><i class="bi bi-credit-card-fill me-2"></i>Pagos</a></li>`;
             navegarOperacionesA('supervisorDashboard');
         }
-        
         menu.innerHTML = itemsMenu; actualizarKpisYResumenSala();
     }
 }
@@ -498,18 +539,14 @@ function verificarLimiteCreditoVenta() { actualizarEstadoBotonVenta(); }
 async function procesarEjecutarVentaPOS() {
     if (carritoPOS.length === 0) return;
     
-    // Verificación estricta de turno
     const tObj = estadoApp.salaActiva.turnos.find(t => t.id === turnoActivoId); 
     const ahora = new Date(); 
-    const minsAhora = ahora.getHours() * 60 + ahora.getMinutes();
-    const tInicio = tObj.inicio || tObj.hora_inicio; 
-    const tFin = tObj.fin || tObj.hora_fin; 
-    const [hIni, mIni] = tInicio.split(':').map(Number); 
-    const [hFin, mFin] = tFin.split(':').map(Number);
-    const minsIni = hIni * 60 + mIni; const minsFin = hFin * 60 + mFin; 
-    let enHorario = false;
-    if (tObj.nocturno || tObj.cruza_medianoche || minsFin < minsIni) { if (minsAhora >= minsIni || minsAhora <= minsFin) enHorario = true; } else { if (minsAhora >= minsIni && minsAhora <= minsFin) enHorario = true; }
-    if (!enHorario) { lanzarAlertaHomedeneda("Turno Restringido", `La hora actual no corresponde a tu turno operativo asignado (${tInicio} a ${tFin}).`, "error"); return; }
+
+    // REGLA DE ACCESO LIMPIA: Usamos el validador centralizado
+    if (!verificarHoraEnTurno(tObj)) { 
+        lanzarAlertaHomedeneda("Turno Restringido", `La hora actual no corresponde a tu turno operativo asignado (${tObj.inicio || tObj.hora_inicio} a ${tObj.fin || tObj.hora_fin}).`, "error"); 
+        return; 
+    }
 
     const isCredito = document.getElementById('posSwitchTipoVenta').checked;
     const totalUSD = carritoPOS.reduce((acc, c) => acc + (c.cantidad * c.precioUnitario), 0); 
