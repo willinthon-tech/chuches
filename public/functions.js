@@ -716,26 +716,6 @@ function abrirAuditoriaHistorialCliente(clienteId, nombreCliente) {
     bootstrapAuditoriaClienteModal.show();
 }
 
-function abrirModalAbonarDeuda(clienteId, ventaId, deudaMax) { 
-    const c = estadoApp.salaActiva.clientes.find(x => x.id === clienteId); 
-    document.getElementById('abonoCliId').value = clienteId;
-    document.getElementById('abonoVentaId').value = ventaId;
-    document.getElementById('abonoCliNombre').innerText = c.name || c.nombre;
-    document.getElementById('abonoTicketRef').innerText = ventaId;
-    document.getElementById('abonoCliDeudaActual').innerText = `$${deudaMax.toFixed(2)}`; 
-    
-    const inputMonto = document.getElementById('abonoMontoInput');
-    inputMonto.value = ""; 
-    inputMonto.max = deudaMax; 
-
-    // Cargar selector de métodos
-    const mSel = document.getElementById('abonoSelectMetodo'); mSel.innerHTML = "";
-    estadoApp.salaActiva.metodos.forEach(m => mSel.innerHTML += `<option value="${m.name || m.nombre}">${m.name || m.nombre} (${m.moneda})</option>`);
-    
-    actualizarConversionAbono();
-    modalAbonarDeudaInst.show(); 
-}
-
 function actualizarConversionAbono() {
     const monto = parseFloat(document.getElementById('abonoMontoInput').value) || 0;
     const metId = document.getElementById('abonoSelectMetodo').value;
@@ -749,8 +729,42 @@ function actualizarConversionAbono() {
     }
 }
 
+// CORREGIDO: Redondeo estricto del límite máximo para evitar errores de decimales "invisibles"
+function abrirModalAbonarDeuda(clienteId, ventaId, deudaMax) { 
+    const c = estadoApp.salaActiva.clientes.find(x => x.id === clienteId); 
+    document.getElementById('abonoCliId').value = clienteId;
+    document.getElementById('abonoVentaId').value = ventaId;
+    document.getElementById('abonoCliNombre').innerText = c.name || c.nombre;
+    document.getElementById('abonoTicketRef').innerText = ventaId;
+    document.getElementById('abonoCliDeudaActual').innerText = `$${deudaMax.toFixed(2)}`; 
+    
+    const inputMonto = document.getElementById('abonoMontoInput');
+    inputMonto.value = ""; 
+    
+    // FIX: Redondear rígidamente a 2 decimales para que el input HTML5 no se vuelva loco
+    inputMonto.max = parseFloat(deudaMax).toFixed(2); 
+
+    // Cargar selector de métodos
+    const mSel = document.getElementById('abonoSelectMetodo'); mSel.innerHTML = "";
+    estadoApp.salaActiva.metodos.forEach(m => mSel.innerHTML += `<option value="${m.name || m.nombre}">${m.name || m.nombre} (${m.moneda})</option>`);
+    
+    actualizarConversionAbono();
+    modalAbonarDeudaInst.show(); 
+}
+
+// NUEVA VARIABLE DE BLOQUEO PARA EVITAR DOBLE CLIC
+let procesandoAbono = false;
+
+// CORREGIDO: Bloqueo anti-duplicados y validación segura de decimales
 async function procesarAbonoDeuda(e) {
     e.preventDefault(); 
+    
+    // REGLA DE BLOQUEO: Prevenir doble ejecución accidental si el usuario da doble clic rápido
+    if (procesandoAbono) {
+        lanzarAlertaHomedeneda("Operación Duplicada", "El pago ya se está procesando. Por favor, espera un momento.", "error");
+        return;
+    }
+
     const clienteId = parseInt(document.getElementById('abonoCliId').value); 
     const ventaId = document.getElementById('abonoVentaId').value;
     const monto = parseFloat(document.getElementById('abonoMontoInput').value); 
@@ -758,7 +772,12 @@ async function procesarAbonoDeuda(e) {
     const tasa = parseFloat(estadoApp.salaActiva.info.tasa);
 
     const maxPermitido = parseFloat(document.getElementById('abonoMontoInput').max);
-    if (monto > maxPermitido) { lanzarAlertaHomedeneda("Error", "El abono supera la deuda de este ticket.", "error"); return; }
+    
+    // FIX DECIMALES: Comparamos forzando 2 decimales para que un pico como 0.01 pase perfecto
+    if (parseFloat(monto.toFixed(2)) > parseFloat(maxPermitido.toFixed(2))) { 
+        lanzarAlertaHomedeneda("Error", "El abono supera la deuda restante de este ticket.", "error"); 
+        return; 
+    }
     
     const payload = { 
         sala_id: salaActivaId, 
@@ -772,6 +791,10 @@ async function procesarAbonoDeuda(e) {
     };
 
     try { 
+        // 1. ACTIVAMOS EL CANDADO
+        procesandoAbono = true;
+        document.querySelector('#formAbonarDeuda button[type="submit"]').disabled = true; // Apaga el botón visualmente
+
         await fetchAPI('/abonar', 'POST', payload); 
         modalAbonarDeudaInst.hide(); 
         await sincronizarSalaConBackend(); 
@@ -784,7 +807,13 @@ async function procesarAbonoDeuda(e) {
             const c = estadoApp.salaActiva.clientes.find(x => x.id === clienteId);
             abrirAuditoriaHistorialCliente(clienteId, c.name || c.nombre);
         }
-    } catch(err) {}
+    } catch(err) {
+        lanzarAlertaHomedeneda("Error", "No se pudo procesar el pago.", "error");
+    } finally {
+        // 2. QUITAMOS EL CANDADO AL TERMINAR TODO (Sea éxito o error)
+        procesandoAbono = false;
+        document.querySelector('#formAbonarDeuda button[type="submit"]').disabled = false;
+    }
 }
 
 // 3. HISTORIAL DE ABONOS DE TICKET
