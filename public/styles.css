@@ -12,3 +12,16 @@ body { background-color: #f4f6f9; font-family: 'Segoe UI', system-ui, sans-serif
 .fila-deudor { background-color: #fce8e6 !important; transition: background-color 0.2s; }
 .fila-deudor:hover { background-color: #fadbd8 !important; }
 .celda-deuda-alerta { color: #dc3545 !important; font-weight: bold; background-color: #fce8e6 !important; }
+
+/* Scroll dinámico para tablas principales largas */
+.scroll-tabla-main {
+    max-height: 60vh; /* Ocupa máximo el 60% del alto de la pantalla */
+    overflow-y: auto;
+}
+
+/* Opcional: Para que la cabecera de la tabla se quede pegada arriba al hacer scroll */
+.scroll-tabla-main thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
