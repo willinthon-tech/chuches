@@ -216,6 +216,7 @@ async function actualizarSelectorTurnosLogin() {
 async function sincronizarSalaConBackend() { estadoApp.salaActiva = await fetchAPI('/sync/' + salaActivaId); }
 
 async function entrarAlDashboardFinal(fromSession = false) {
+    // 1. LÓGICA SI VIENE DESDE EL LOGIN (NUEVA SESIÓN)
     if (!fromSession) {
         if (usuarioAutenticadoObj.rol === "EMPLEADO") {
             const tSel = document.getElementById('authSelectorTurno').value;
@@ -224,7 +225,6 @@ async function entrarAlDashboardFinal(fromSession = false) {
             const tId = parseInt(tSel);
             const tObj = estadoApp.salaActiva.turnos.find(t => t.id === tId);
             
-            // REGLA DE ACCESO: Bloqueo inmediato si intenta entrar fuera de hora
             if (!verificarHoraEnTurno(tObj)) {
                 lanzarAlertaHomedeneda("Turno Restringido", `No puedes acceder al sistema fuera de tu horario operativo asignado (${tObj.inicio || tObj.hora_inicio} a ${tObj.fin || tObj.hora_fin}).`, "error");
                 return;
@@ -233,23 +233,29 @@ async function entrarAlDashboardFinal(fromSession = false) {
         }
         if (usuarioAutenticadoObj.rol !== "ADMIN") salaActivaId = parseInt(document.getElementById('authSelectorSala').value);
         localStorage.setItem('chuches_session', JSON.stringify({ user: usuarioAutenticadoObj, sala: salaActivaId, turno: turnoActivoId }));
-    } else {
-        // Validación de seguridad para sesiones persistentes automáticas
-        if (usuarioAutenticadoObj.rol === "EMPLEADO" && turnoActivoId) {
+    } 
+    
+    // 2. DESCARGAR BASE DE DATOS Y VALIDAR SEGURIDAD (Si es F5 / Recarga)
+    if (usuarioAutenticadoObj.rol !== "ADMIN") {
+        // AQUÍ ESTÁ LA MAGIA: Descargamos los turnos ANTES de evaluar
+        await sincronizarSalaConBackend(); 
+        
+        if (fromSession && usuarioAutenticadoObj.rol === "EMPLEADO" && turnoActivoId) {
             const tObj = estadoApp.salaActiva.turnos.find(t => t.id === turnoActivoId);
             if (!verificarHoraEnTurno(tObj)) {
                 localStorage.removeItem('chuches_session');
-                location.reload();
+                location.reload(); // Solo lo bota si verdaderamente la hora expiró
                 return;
             }
         }
     }
     
+    // 3. PINTAR LA INTERFAZ
     document.getElementById('modalAuthSistema').classList.add('d-none');
     document.getElementById('modalAuthSistema').classList.remove('show', 'd-block');
     document.getElementById('dashboardPrincipal').classList.remove('d-none');
     document.getElementById('lblUsernameMenu').innerText = `@${usuarioAutenticadoObj.username}`;
-    document.getElementById('lblRolMenu').innerText = usuarioAutenticadoObj.rol === 'EMPLEADO' ? 'CAJER@' : 'ENCARGAD@'
+    document.getElementById('lblRolMenu').innerText = usuarioAutenticadoObj.rol === 'EMPLEADO' ? 'CAJER@' : 'ENCARGAD@';
     const menu = document.getElementById('menuNavegacionDinamico');
     
     if (usuarioAutenticadoObj.rol === "ADMIN") {
@@ -259,7 +265,6 @@ async function entrarAlDashboardFinal(fromSession = false) {
         menu.innerHTML = `<li class="nav-item"><a class="nav-link active" onclick="navegarOperacionesA('salas')"><i class="bi bi-shop me-2"></i>Salas</a></li><li class="nav-item"><a class="nav-link" onclick="navegarOperacionesA('supervisores')"><i class="bi bi-people me-2"></i>Encargados</a></li>`;
         navegarOperacionesA('salas');
     } else {
-        await sincronizarSalaConBackend();
         if (usuarioAutenticadoObj.rol === "SUPERVISOR") estadoApp.adminData = await fetchAPI('/admin');
         document.getElementById('lblSalaActivaName').innerText = estadoApp.salaActiva.info.name || estadoApp.salaActiva.info.nombre;
         
@@ -271,6 +276,7 @@ async function entrarAlDashboardFinal(fromSession = false) {
         
         const badge = document.getElementById('lblTurnoActivoBadgeContainer');
         if (turnoActivoId) { const t = estadoApp.salaActiva.turnos.find(t => t.id === turnoActivoId); if(t) badge.innerHTML = `<span class="badge bg-danger mt-1"><i class="bi bi-moon-stars-fill"></i> ${t.name || t.nombre}</span>`; }
+        
         let itemsMenu = '';
         if (usuarioAutenticadoObj.rol === "EMPLEADO") {
             document.getElementById('wrapperBtnCambiarTasa').innerHTML = ""; document.getElementById('wrapperBtnCambiarCreditoGlobal').innerHTML = "";
