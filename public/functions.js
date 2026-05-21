@@ -275,7 +275,7 @@ async function entrarAlDashboardFinal(fromSession = false) {
         }
         
         const badge = document.getElementById('lblTurnoActivoBadgeContainer');
-        if (turnoActivoId) { const t = estadoApp.salaActiva.turnos.find(t => t.id === turnoActivoId); if(t) badge.innerHTML = `<span class="badge bg-danger mt-1"><i class="bi bi-moon-stars-fill"></i> ${t.name || t.nombre}</span>`; }
+        if (turnoActivoId) { const t = estadoApp.salaActiva.turnos.find(t => t.id === turnoActivoId); if(t) badge.innerHTML = `<span class="badge bg-danger mt-1">${t.name || t.nombre}</span>`; }
         
         let itemsMenu = '';
         if (usuarioAutenticadoObj.rol === "EMPLEADO") {
@@ -864,8 +864,38 @@ function eliminarSalaAdminConModal(id, nombre) { solicitarConfirmacionEliminar(`
 
 function renderOpcionesSalasModalSup(salasAsignadas = []) { const sel = document.getElementById('inputSalasAsignadasSup'); sel.innerHTML = ""; estadoApp.adminData.salas.forEach(s => sel.innerHTML += `<option value="${s.id}" ${salasAsignadas.includes(s.id)?'selected':''}>${s.name || s.nombre}</option>`); }
 function renderizarSupervisoresAdminTable() { renderOpcionesSalasModalSup(); const tbody = document.getElementById('tablaAdminSupervisores'); tbody.innerHTML = ""; estadoApp.adminData.supervisores.filter(u => u.rol === "SUPERVISOR" || u.rol === "ADMIN").forEach(sup => { let salas = sup.rol === "ADMIN" ? "Acceso Total" : (sup.salasAsignadas||[]).map(id => estadoApp.adminData.salas.find(x => x.id === id)?.name || estadoApp.adminData.salas.find(x => x.id === id)?.nombre).join(', '); let btnEdit = sup.rol === "ADMIN" ? "" : `<button class="btn btn-sm btn-outline-primary" onclick="abrirModalEditarSupervisor(${sup.id})"><i class="bi bi-pencil-fill"></i></button>`; let btnDel = sup.rol === "ADMIN" ? "" : `<button class="btn btn-sm btn-outline-danger" onclick="eliminarSupervisorAdminConModal(${sup.id}, '${sup.username}')"><i class="bi bi-trash3-fill"></i></button>`; tbody.innerHTML += `<tr><td>@${sup.username}</td><td>${sup.name || sup.nombre}</td><td>${salas || 'Sin Asignar'}</td><td><span class="badge ${sup.rol === 'ADMIN' ? 'bg-danger' : 'bg-primary'}">${sup.rol}</span></td><td><div class="d-flex gap-1 justify-content-center">${btnEdit}${btnDel}</div></td></tr>`; }); }
-function abrirModalCrearSupervisor() { document.getElementById('formNuevoSupervisor').reset(); document.getElementById('inputEditSupId').value = ""; renderOpcionesSalasModalSup(); modalSupervisorInst.show(); }
-function abrirModalEditarSupervisor(id) { const sup = estadoApp.adminData.supervisores.find(u => u.id === id); if (sup && sup.rol !== 'ADMIN') { document.getElementById('inputEditSupId').value = sup.id; document.getElementById('inputNombreSup').value = sup.name || sup.nombre; document.getElementById('inputUsernameSup').value = sup.username; document.getElementById('inputPasswordSup').value = ""; renderOpcionesSalasModalSup(sup.salasAsignadas); modalSupervisorInst.show(); } }
+
+function abrirModalCrearSupervisor() { 
+    document.getElementById('formNuevoSupervisor').reset(); 
+    document.getElementById('inputEditSupId').value = ""; 
+    
+    // MAGIA UX: Exigir clave al crear
+    const inputPass = document.getElementById('inputPasswordSup');
+    inputPass.required = true;
+    inputPass.placeholder = "********";
+    
+    renderOpcionesSalasModalSup(); 
+    modalSupervisorInst.show(); 
+}
+
+function abrirModalEditarSupervisor(id) { 
+    const sup = estadoApp.adminData.supervisores.find(u => u.id === id); 
+    if (sup && sup.rol !== 'ADMIN') { 
+        document.getElementById('inputEditSupId').value = sup.id; 
+        document.getElementById('inputNombreSup').value = sup.name || sup.nombre; 
+        document.getElementById('inputUsernameSup').value = sup.username; 
+        
+        // MAGIA UX: Clave opcional al editar
+        const inputPass = document.getElementById('inputPasswordSup');
+        inputPass.value = ""; 
+        inputPass.required = false;
+        inputPass.placeholder = "Dejar en blanco para no cambiar";
+        
+        renderOpcionesSalasModalSup(sup.salasAsignadas); 
+        modalSupervisorInst.show(); 
+    } 
+}
+
 async function crearSupervisorAdmin(e) { e.preventDefault(); const payload = { username: document.getElementById('inputUsernameSup').value.trim(), password: document.getElementById('inputPasswordSup').value, name: document.getElementById('inputNombreSup').value.trim(), rol: "SUPERVISOR", salasAsignadas: Array.from(document.getElementById('inputSalasAsignadasSup').selectedOptions).map(o => parseInt(o.value)) }; const id = document.getElementById('inputEditSupId').value; try { if(id) await fetchAPI(`/supervisores/${id}`, 'PUT', payload); else await fetchAPI('/supervisores', 'POST', payload); modalSupervisorInst.hide(); estadoApp.adminData = await fetchAPI('/admin'); renderizarSupervisoresAdminTable(); } catch(err){} }
 function eliminarSupervisorAdminConModal(id, username) { solicitarConfirmacionEliminar(`¿Eliminar a @${username}?`, async function() { try { await fetchAPI(`/supervisores/${id}`, 'DELETE'); estadoApp.adminData = await fetchAPI('/admin'); renderizarSupervisoresAdminTable(); } catch(err){} }); }
 
@@ -937,8 +967,37 @@ async function guardarEdicionProducto(e) {
 function eliminarProductoSupervisorConModal(artId) { solicitarConfirmacionEliminar(`¿Desea eliminar este producto?`, async function() { try { await fetchAPI(`/articulos/${artId}`, 'DELETE'); await sincronizarSalaConBackend(); renderizarModuloInventarioGestion(); actualizarKpisYResumenSala(); } catch(err) {} }); }
 
 function renderizarEmpleadosSalaTable() { const tbody = document.getElementById('tablaSupervisorEmpleados'); tbody.innerHTML = ""; const emp = estadoApp.adminData.supervisores.filter(u => u.salasAsignadas.includes(salaActivaId)); if(emp.length===0){ tbody.innerHTML=`<tr><td colspan="5" class="text-muted p-3">No hay personal.</td></tr>`; return;} emp.forEach(u => { tbody.innerHTML += `<tr><td>@${u.username}</td><td>${u.name || u.nombre}</td><td>${estadoApp.salaActiva.info.name || estadoApp.salaActiva.info.nombre}</td><td><span class="badge bg-secondary">${u.rol}</span></td><td><div class="d-flex gap-1 justify-content-center"><button class="btn btn-sm btn-outline-primary" onclick="abrirModalEditarEmpleado(${u.id})"><i class="bi bi-pencil-fill"></i></button><button class="btn btn-sm btn-outline-danger" onclick="eliminarEmpleadoSupervisorConModal(${u.id}, '${u.username}')"><i class="bi bi-trash3-fill"></i></button></div></td></tr>`; }); }
-function abrirModalCrearEmpleado() { document.getElementById('formNuevoEmpleado').reset(); document.getElementById('inputEditEmpId').value = ""; modalEmpleadoInst.show(); }
-function abrirModalEditarEmpleado(id) { const emp = estadoApp.adminData.supervisores.find(u => u.id === id); if(emp) { document.getElementById('inputEditEmpId').value = emp.id; document.getElementById('inputNombreEmp').value = emp.name || emp.nombre; document.getElementById('inputUsernameEmp').value = emp.username; document.getElementById('inputPasswordEmp').value = ""; document.getElementById('inputRolEmp').value = emp.rol; modalEmpleadoInst.show(); } }
+
+function abrirModalCrearEmpleado() { 
+    document.getElementById('formNuevoEmpleado').reset(); 
+    document.getElementById('inputEditEmpId').value = ""; 
+    
+    // MAGIA UX: Exigir clave al crear
+    const inputPass = document.getElementById('inputPasswordEmp');
+    inputPass.required = true;
+    inputPass.placeholder = "********";
+    
+    modalEmpleadoInst.show(); 
+}
+
+function abrirModalEditarEmpleado(id) { 
+    const emp = estadoApp.adminData.supervisores.find(u => u.id === id); 
+    if(emp) { 
+        document.getElementById('inputEditEmpId').value = emp.id; 
+        document.getElementById('inputNombreEmp').value = emp.name || emp.nombre; 
+        document.getElementById('inputUsernameEmp').value = emp.username; 
+        
+        // MAGIA UX: Clave opcional al editar
+        const inputPass = document.getElementById('inputPasswordEmp');
+        inputPass.value = ""; 
+        inputPass.required = false;
+        inputPass.placeholder = "Dejar en blanco para no cambiar";
+        
+        document.getElementById('inputRolEmp').value = emp.rol; 
+        modalEmpleadoInst.show(); 
+    } 
+}
+
 async function guardarEmpleadoSupervisor(e) { e.preventDefault(); const payload = { username: document.getElementById('inputUsernameEmp').value.trim(), password: document.getElementById('inputPasswordEmp').value, name: document.getElementById('inputNombreEmp').value.trim(), rol: document.getElementById('inputRolEmp').value, salasAsignadas: [salaActivaId] }; const id = document.getElementById('inputEditEmpId').value; try { if(id) await fetchAPI(`/supervisores/${id}`, 'PUT', payload); else await fetchAPI('/supervisores', 'POST', payload); modalEmpleadoInst.hide(); estadoApp.adminData = await fetchAPI('/admin'); renderizarEmpleadosSalaTable(); } catch(err){} }
 function eliminarEmpleadoSupervisorConModal(id, username) { solicitarConfirmacionEliminar(`¿Desvincular a @${username}?`, async function() { try { await fetchAPI(`/supervisores/${id}`, 'DELETE'); estadoApp.adminData = await fetchAPI('/admin'); renderizarEmpleadosSalaTable(); } catch(err){} }); }
 
