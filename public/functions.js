@@ -1129,6 +1129,21 @@ function verDesgloseCierreTotalGeneral(fechaJornadaTarget) {
     bootstrapDetalleTurnoModal.show();
 }
 
+// ==========================================
+// CONEXIÓN EN TIEMPO REAL (WEBSOCKETS)
+// ==========================================
+const socket = io(); // Se conecta automáticamente a tu dominio/puerto actual
+
+socket.on('actualizacion_global', async (data) => {
+    if (usuarioAutenticadoObj) {
+        // Si data.sala_id es null significa refresco administrativo general, de lo contrario filtra por sala
+        if (usuarioAutenticadoObj.rol === "ADMIN" || usuarioAutenticadoObj.rol === "SUPERVISOR" || data.sala_id === null || salaActivaId === parseInt(data.sala_id)) {
+            console.log("🔔 Sincronizando datos en tiempo real...");
+            await recargarDatosGlobales(); 
+        }
+    }
+});
+
 async function procesarNuevaTasaSupervisor(e) { e.preventDefault(); try { await fetchAPI(`/salas/${salaActivaId}/tasa`, 'PUT', { tasa: parseFloat(document.getElementById('inputMontoNuevaTasa').value) }); bootstrapTasaModal.hide(); await sincronizarSalaConBackend(); actualizarKpisYResumenSala(); } catch(err){} }
 async function procesarNuevoCreditoGlobalSupervisor(e) { e.preventDefault(); try { await fetchAPI(`/salas/${salaActivaId}/credito`, 'PUT', { limite: parseFloat(document.getElementById('inputMontoNuevoCreditoGlobal').value) }); bootstrapCreditoGlobalModal.hide(); await sincronizarSalaConBackend(); actualizarKpisYResumenSala(); } catch(err){} }
 function abrirModalModificarTasa() { document.getElementById('inputMontoNuevaTasa').value = parseFloat(estadoApp.salaActiva.info.tasa); bootstrapTasaModal.show(); }
