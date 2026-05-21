@@ -1129,20 +1129,83 @@ function verDesgloseCierreTotalGeneral(fechaJornadaTarget) {
     bootstrapDetalleTurnoModal.show();
 }
 
+
+
+
+// ==========================================
+// FUNCIÓN DE REFRESCO GLOBAL (BOTÓN Y SOCKETS)
+// ==========================================
+async function recargarDatosGlobales() {
+    const btn = document.getElementById('btnRefreshGlobal');
+    
+    // 1. Efecto Visual: Bloquear botón y mostrar spinner (si se presionó manual)
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<div class="spinner-border spinner-border-sm text-info mb-1" role="status"></div><span style="font-size:0.6rem;" class="fw-bold text-white text-uppercase">Cargando</span>`;
+    }
+
+    try {
+        // 2. Descargar toda la base de datos fresca
+        await sincronizarSalaConBackend();
+        
+        // Si el usuario es supervisor o admin, traemos también la data administrativa
+        if (usuarioAutenticadoObj.rol === "ADMIN" || usuarioAutenticadoObj.rol === "SUPERVISOR") {
+            estadoApp.adminData = await fetchAPI('/admin');
+        }
+
+        // 3. Actualizar los 4 recuadros de arriba (KPIs)
+        actualizarKpisYResumenSala();
+
+        // 4. Refresco Dinámico: Detectar qué pantalla está abierta y actualizar solo esa
+        const vistas = [
+            { id: 'viewSupervisorDashboard', fn: renderizarDashboardSupervisor },
+            { id: 'viewAdminSalas', fn: renderizarSalasAdminTable },
+            { id: 'viewAdminSupervisores', fn: renderizarSupervisoresAdminTable },
+            { id: 'viewVentasAuditoria', fn: renderizarMatrizVentasAuditoria },
+            { id: 'viewVentasEmpleadoCajero', fn: renderizarVentasPropiasEmpleado },
+            { id: 'viewClientesGestion', fn: renderizarClientesSalaTable },
+            { id: 'viewInventario', fn: renderizarModuloInventarioGestion },
+            { id: 'viewSupervisorEmpleados', fn: renderizarEmpleadosSalaTable },
+            { id: 'viewSupervisorTurnos', fn: renderizarTurnosConfigTable },
+            { id: 'viewSupervisorMetodosPago', fn: renderizarMetodosPagoConfigTable }
+        ];
+
+        vistas.forEach(v => {
+            const el = document.getElementById(v.id);
+            if (el && !el.classList.contains('d-none')) {
+                v.fn(); // Ejecuta la función de renderizado correspondiente
+            }
+        });
+
+    } catch (err) {
+        console.error("Error al sincronizar:", err);
+    } finally {
+        // 5. Devolver el botón a su estado normal
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="bi bi-arrow-clockwise fs-4 text-info mb-1"></i><span style="font-size:0.6rem;" class="fw-bold text-white text-uppercase">Actualizar</span>`;
+        }
+    }
+}
+
 // ==========================================
 // CONEXIÓN EN TIEMPO REAL (WEBSOCKETS)
 // ==========================================
-const socket = io(); // Se conecta automáticamente a tu dominio/puerto actual
+const socket = io(); 
 
 socket.on('actualizacion_global', async (data) => {
     if (usuarioAutenticadoObj) {
         // Si data.sala_id es null significa refresco administrativo general, de lo contrario filtra por sala
         if (usuarioAutenticadoObj.rol === "ADMIN" || usuarioAutenticadoObj.rol === "SUPERVISOR" || data.sala_id === null || salaActivaId === parseInt(data.sala_id)) {
             console.log("🔔 Sincronizando datos en tiempo real...");
+            
+            // Llamamos a la función que ahora sí existe
             await recargarDatosGlobales(); 
         }
     }
 });
+
+
 
 async function procesarNuevaTasaSupervisor(e) { e.preventDefault(); try { await fetchAPI(`/salas/${salaActivaId}/tasa`, 'PUT', { tasa: parseFloat(document.getElementById('inputMontoNuevaTasa').value) }); bootstrapTasaModal.hide(); await sincronizarSalaConBackend(); actualizarKpisYResumenSala(); } catch(err){} }
 async function procesarNuevoCreditoGlobalSupervisor(e) { e.preventDefault(); try { await fetchAPI(`/salas/${salaActivaId}/credito`, 'PUT', { limite: parseFloat(document.getElementById('inputMontoNuevoCreditoGlobal').value) }); bootstrapCreditoGlobalModal.hide(); await sincronizarSalaConBackend(); actualizarKpisYResumenSala(); } catch(err){} }
