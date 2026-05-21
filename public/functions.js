@@ -1152,7 +1152,7 @@ function abrirModalModificarCreditoGlobal() { document.getElementById('inputMont
 // ==========================================
 // MÓDULO DE ESTADÍSTICAS AVANZADAS (CHART.JS)
 // ==========================================
-let graficosDashboard = {};
+var graficosDashboard = {};
 
 function renderizarDashboardSupervisor() {
     const filtro = document.getElementById('filtroTiempoDashboard').value;
